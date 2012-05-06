@@ -17,7 +17,7 @@ typedef enum
 	decimal,
 	space,
 	invalid
-} tokenType;
+} Symbol;
 
 typedef enum
 {
@@ -26,20 +26,6 @@ typedef enum
 } error;
 
 typedef char* token;
-
-/*typedef struct
-{
-	int ipart;
-	int fpart;
-} number;
-
-typedef struct
-{
-	//number real;
-	//number imaginary;
-	float real;
-	float imaginary;
-} complex;*/
 
 typedef double number;
 
@@ -145,9 +131,9 @@ char* ufgets(FILE* stream)
     return buffer;
 }
 
-tokenType type(char ch)
+Symbol type(char ch)
 {
-	tokenType result;
+	Symbol result;
 	switch(ch)
 	{
 		case '+':
@@ -261,9 +247,9 @@ int tokenize(char *str, char *(**tokensRef))
 		if(token != NULL)
 		{
 			numTokens++;
-			if(tokens == NULL) // First allocation
+			/*if(tokens == NULL) // First allocation
 				tokens = (char**)malloc(numTokens * sizeof(char*));
-			else
+			else*/
 				tokens = (char**)realloc(tokens, numTokens * sizeof(char*));
 			tokens[numTokens - 1] = token;
 		}
@@ -289,20 +275,81 @@ char* substr(char *str, size_t begin, size_t len)
 
 bool strBeginsWith(char *haystack, char *needle)
 {
+	bool result;
 	if(strlen(haystack) < strlen(needle))
+	{
 		return false;
+	}
+	else
+	{
+		char *sub = substr(haystack, 0, strlen(needle));
+		result = (strcmp(sub, needle) == 0);
+		free(sub);
+		sub = NULL;
+	}
+	return result;
+}
 
-	return (strcmp(substr(haystack, 0, strlen(needle)), needle) == 0);
+int strSplit(char *str, const char split, char *(**partsRef))
+{
+	char **parts = NULL;
+	char *ptr = str;
+	char *part = NULL;
+	int numParts = 0;
+	char ch;
+	int len = 0;
+	while(1)
+	{
+		ch = *ptr++;
+
+		if((ch == '\0' || ch == split) && part != NULL) // End of part
+		{
+			// Add null terminator
+			part = (char*)realloc(part, (len+1) * sizeof(char));
+			part[len] = '\0';
+
+			// Add to parts
+			numParts++;
+			if(parts == NULL)
+				parts = (char**)malloc(sizeof(char**));
+			else
+				parts = (char**)realloc(parts, numParts * sizeof(char*));
+			parts[numParts - 1] = part;
+			part = NULL;
+			len = 0;
+		}
+		else // Add to part
+		{
+			len++;
+			if(part == NULL)
+				part = (char*)malloc(sizeof(char));
+			else
+				part = (char*)realloc(part, len * sizeof(char));
+			part[len - 1] = ch;
+		}
+
+		if(ch == '\0')
+			break;
+	}
+	*partsRef = parts;
+	return numParts;
 }
 
 bool isCommand(char *str)
 {
 	bool result = false;
-	if(strBeginsWith(str, "set"))
+	char **subs = NULL;
+	int len = strSplit(str, ' ', &subs);
+	if(len >= 1 && strcmp(subs[0], "set") == 0)
+	{
 		result = true;
-	else if(strBeginsWith(str, "unset"))
-		result = true;
+	}
 	return result;
+}
+
+void execCommand(char *str)
+{
+	printf("\tcommand \"%s\" recognized\n", str);
 }
 
 int main()
@@ -317,7 +364,7 @@ int main()
 		if(type(*str) == invalid && isCommand(str))
 		{
 			// Do something with command
-			printf("\tcommand \"%s\" recognized\n", str);
+			execCommand(str);
 
 			free(str);
 			str = NULL;
@@ -349,4 +396,5 @@ int main()
 		str = ufgets(stdin);
 	}
 	free(str);
+	str = NULL;
 }
