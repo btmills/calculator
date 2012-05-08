@@ -1,27 +1,35 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include "stack.h"
 
 int main()
 {
-	int i;
 	Stack strs;
-	char* val = NULL;
+	Stack ints;
+	char* str = NULL;
+	int val = 0;
+	int i;
 
-	val = "this";
-	printf("Pushing \"%s\"\n", val);
-	stackPush(&strs, val);
+	stackInit(&strs);
+	stackInit(&ints);
+
+	// Test strings
+
+	str = "this";
+	printf("Pushing \"%s\"\n", str);
+	stackPush(&strs, str);
 	printf("Top of stack: \"%s\"\n", (char*)stackTop(&strs));
-	val = "is";
-	printf("Pushing \"%s\"\n", val);
-	stackPush(&strs, val);
+	str = "is";
+	printf("Pushing \"%s\"\n", str);
+	stackPush(&strs, str);
 	printf("Top of stack: \"%s\"\n", (char*)stackTop(&strs));
-	val = "a";
-	printf("Pushing \"%s\"\n", val);
-	stackPush(&strs, val);
+	str = "a";
+	printf("Pushing \"%s\"\n", str);
+	stackPush(&strs, str);
 	printf("Top of stack: \"%s\"\n", (char*)stackTop(&strs));
-	val = "stack";
-	printf("Pushing \"%s\"\n", val);
-	stackPush(&strs, val);
+	str = "stack";
+	printf("Pushing \"%s\"\n", str);
+	stackPush(&strs, str);
 	printf("Top of stack: \"%s\"\n", (char*)stackTop(&strs));
 	printf("\n");
 
@@ -32,16 +40,46 @@ int main()
 	}
 	printf("\n");
 
-	val = stackPop(&strs);
-	printf("stackPop() returned \"%s\"\n", val);
+	str = stackPop(&strs);
+	printf("stackPop() returned \"%s\"\n", str);
 	printf("Remainder of stack:\n");
 	while(stackSize(&strs))
 	{
-		val = (char*)stackPop(&strs);
-		printf("\"%s\"\n", val);
+		str = (char*)stackPop(&strs);
+		printf("\"%s\"\n", str);
 	}
-	val = (char*)stackPop(&strs);
-	printf("Extra call of stackPop() returned \"%s\"\n", val);
 
 	stackFree(&strs);
+
+	// Test ints
+
+	for(i = 1; i <= 4; i++)
+	{
+		int *add = (int*)malloc(sizeof(int));
+		*add = i;
+		printf("Pushing %d\n", *add);
+		stackPush(&ints, add);
+		printf("Top of stack: %d\n", *(int*)stackTop(&ints));
+	}
+	printf("\n");
+
+	printf("Stack before stackPop():\n");
+	for(i = stackSize(&ints) - 1; i >= 0; i--)
+	{
+		printf("%d\n", *((int*)(ints.content[i])));
+	}
+	printf("\n");
+
+	val = *(int*)stackPop(&ints);
+	printf("stackPop() returned %d\n", val);
+	printf("Remainder of stack:\n");
+	while(stackSize(&ints))
+	{
+		int *rem = (int*)stackPop(&ints);
+		val = (rem != NULL ? *rem : -1);
+		printf("%d\n", val);
+		free(rem);
+	}
+
+	stackFree(&ints);
 }

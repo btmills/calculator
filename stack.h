@@ -5,8 +5,10 @@ typedef struct
 	int top;
 } Stack;
 
+void stackInit(Stack *s);
 void stackPush(Stack *s, void* val);
 void* stackTop(Stack *s);
 void* stackPop(Stack *s);
 int stackSize(Stack *s);
 void stackFree(Stack *s);
+void stackReverse(Stack *s);

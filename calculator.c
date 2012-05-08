@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h> // Temporary
+#include "stack.h"
 
 #define bool char
 #define true 1
@@ -12,7 +13,8 @@ typedef enum
 	addop,
 	multop,
 	expop,
-	paren,
+	lparen,
+	rparen,
 	digit,
 	decimal,
 	space,
@@ -22,54 +24,69 @@ typedef enum
 typedef enum
 {
 	divZero,
-	overflow
-} error;
+	overflow,
+	parenMismatch
+} Error;
 
 typedef char* token;
 
 typedef double number;
 
-void raise(error err)
+void raise(Error err)
 {
 	char* msg;
 	switch(err)
 	{
 		case divZero:
-			msg = "Error: Divide by zero";
+			msg = "Divide by zero";
 			break;
 		case overflow:
-			msg = "Error: Overflow";
+			msg = "Overflow";
+			break;
+		case parenMismatch:
+			msg = "Mismatched parentheses";
 			break;
 	}
+	printf("\tError: %s\n", msg);
 }
 
-number doAdd(number lside, token op, number rside)
+inline unsigned int toDigit(char ch)
 {
-	number result;
-	switch(*op)
+	return ch - '0';
+}
+
+number buildNumber(token str)
+{
+	number result = 0;
+	while(*str && *str != '.')
 	{
-		case '+':
-			{
-				result = lside + rside;
-			}
-			break;
-		case '-':
-			{
-				result = lside - rside;
-			}
-			break;
+		result = result * 10 + toDigit(*str++);
 	}
 	return result;
 }
 
-number doMult(number lside, token op, number rside)
+token num2Str(number num)
 {
-	number result;
+	token str = (token)malloc(20*sizeof(char));
+	snprintf(str, 19, "%f", num);
+	return str;
+}
+
+token doOp(token loperand, token op, token roperand)
+{
+	number lside = buildNumber(loperand);
+	number rside = buildNumber(roperand);
+	number ret;
 	switch(*op)
 	{
+		case '^':
+			{
+				ret = pow(lside, rside);
+			}
+			break;
 		case '*':
 			{
-				result = lside * rside;
+				ret = lside * rside;
 			}
 			break;
 		case '/':
@@ -77,7 +94,7 @@ number doMult(number lside, token op, number rside)
 				if(rside == 0)
 					raise(divZero);
 				else
-					result = lside * rside;
+					ret = lside / rside;
 			}
 			break;
 		case '%':
@@ -86,19 +103,23 @@ number doMult(number lside, token op, number rside)
 					raise(divZero);
 				else
 				{
-					result = (int)(lside / rside);
-					result = lside - ((number)result * rside);
+					ret = (int)(lside / rside);
+					ret = lside - (ret * rside);
 				}
 			}
+			break;
+		case '+':
+			{
+				ret = lside + rside;
+			}
+			break;
+		case '-':
+			{
+				ret = lside - rside;
+			}
+			break;
 	}
-	return result;
-}
-
-number doPow(number lside, number rside)
-{
-	number result;
-	result = pow(lside, rside);
-	return result;
+	return num2Str(ret);
 }
 
 /*
@@ -149,8 +170,10 @@ Symbol type(char ch)
 			result = expop;
 			break;
 		case '(':
+			result = lparen;
+			break;
 		case ')':
-			result = paren;
+			result = rparen;
 			break;
 		case '0':
 		case '1':
@@ -177,19 +200,9 @@ Symbol type(char ch)
 	return result;
 }
 
-unsigned int toDigit(char ch)
+Symbol tokenType(token tk)
 {
-	return ch - '0';
-}
-
-number buildNumber(token str)
-{
-	number result = 0;
-	while(*str && *str != '.')
-	{
-		result = result * 10 + toDigit(*str++);
-	}
-	return result;
+	return type(*tk);
 }
 
 int tokenize(char *str, char *(**tokensRef))
@@ -208,7 +221,8 @@ int tokenize(char *str, char *(**tokensRef))
 		{
 			case addop:
 			case multop:
-			case paren:
+			case lparen:
+			case rparen:
 				// Assemble a single-character (plus null-terminator) operation token
 				{
 					token = (char*)malloc(2 * sizeof(char)); // Leave room for '\0'
@@ -256,6 +270,174 @@ int tokenize(char *str, char *(**tokensRef))
 	}
 	*tokensRef = tokens; // Send back out
 	return numTokens;
+}
+
+bool leftAssoc(token op)
+{
+	bool ret;
+	switch(tokenType(op))
+	{
+		case addop:
+		case multop:
+			ret = true;
+			break;
+		case expop:
+			ret = false;
+			break;
+	}
+	return ret;
+}
+
+int precedence(token op1, token op2)
+{
+	int ret;
+
+	if(tokenType(op1) == tokenType(op2)) // Equal precedence
+		ret = 0;
+	else if(tokenType(op1) == addop
+			&& (tokenType(op2) == multop || tokenType(op2) == expop)) // op1 has lower precedence
+		ret = -1;
+	else if(tokenType(op2) == addop
+			&& (tokenType(op1) == multop || tokenType(op1) == expop)) // op1 has higher precedence
+		ret = 1;
+	else if(tokenType(op1) == multop
+			&& tokenType(op2) == expop) // op1 has lower precedence
+		ret = -1;
+	else if(tokenType(op1) == expop
+			&& tokenType(op2) == multop) // op1 has higher precedence
+		ret = 1;
+
+	return ret;
+}
+
+void evalStackPush(Stack *s, token val)
+{
+	switch(tokenType(val))
+	{
+		case expop:
+		case multop:
+		case addop:
+			{
+				if(stackSize(s) >= 2)
+				{
+					// Pop two operands
+					token l, r, res;
+					r = (token)stackPop(s);
+					l = (token)stackPop(s);
+
+					// Evaluate
+					res = doOp(l, val, r);
+
+					// Push result
+					stackPush(s, res);
+				}
+				else
+				{
+					stackPush(s, val);
+				}
+			}
+			break;
+		case digit:
+			{
+				stackPush(s, val);
+			}
+			break;
+	}
+}
+
+bool postfix(token *tokens, int numTokens, Stack *output)
+{
+	Stack operators;
+	int i;
+	bool err = false;
+	stackInit(&operators);
+	for(i = 0; i < numTokens; i++)
+	{
+		// From Wikipedia/Shunting-yard_algorithm:
+		switch(tokenType(tokens[i]))
+		{
+			case digit:
+				{
+					// If the token is a number, then add it to the output queue.
+					//printf("Adding number to output stack\n");
+					evalStackPush(output, tokens[i]);
+				}
+				break;
+			case addop:
+			case multop:
+			case expop:
+				{
+					/*
+					 * If the token is an operator, op1, then:
+					 *     while there is an operator token, op2, at the top of the stack, and
+					 *             either op1 is left-associative and its precedence is less than or equal to that of op2,
+					 *             or op1 is right-associative and its precedence is less than that of op2,
+					 *         pop op2 off the stack, onto the output queue
+					 *     push op1 onto the stack
+					 */
+					while(stackSize(&operators) > 0
+						&& (tokenType((char*)stackTop(&operators)) == addop || tokenType((char*)stackTop(&operators)) == multop || tokenType((char*)stackTop(&operators)) == expop)
+						&& ((leftAssoc(tokens[i]) && precedence(tokens[i], (char*)stackTop(&operators)) <= 0)
+							|| (!leftAssoc(tokens[i]) && precedence(tokens[i], (char*)stackTop(&operators)) < 0)))
+					{
+						//printf("Moving operator from operator stack to output stack\n");
+						evalStackPush(output, stackPop(&operators));
+					}
+					//printf("Adding operator to operator stack\n");
+					stackPush(&operators, tokens[i]);
+				}
+				break;
+			case lparen:
+				{
+					// If the token is a left paren, then push it onto the stack
+					//printf("Adding left paren to operator stack\n");
+					stackPush(&operators, tokens[i]);
+				}
+				break;
+			case rparen:
+				{
+					/*
+					 * If the token is a right paren:
+					 *     Until the token at the top of the stack is a left paren, pop operators off the stack onto the output queue
+					 *     Pop the left paren from the stack, but not onto the output queue
+					 *     If the stack runs out without finding a left paren, then there are mismatched parens
+					 */
+					while(stackSize(&operators) > 0
+						&& tokenType((token)stackTop(&operators)) != lparen
+						&& stackSize(&operators) > 1)
+					{
+						//printf("Moving operator from operator stack to output stack\n");
+						evalStackPush(output, stackPop(&operators));
+					}
+					if(stackSize(&operators) > 0
+						&& tokenType((token)stackTop(&operators)) != lparen)
+					{
+						err = true;
+						raise(parenMismatch);
+					}
+					//printf("Removing left paren from operator stack\n");
+					stackPop(&operators); // Discard lparen
+				}
+		}
+	}
+	/*
+	 * When there are no more tokens to read:
+	 *     While there are still operator tokens on the stack:
+	 *         If the operator token on the top of the stack is a paren, then there are mismatched parens
+	 *         Pop the operator onto the output queue
+	 */
+	while(stackSize(&operators) > 0)
+	{
+		if(tokenType((token)stackTop(&operators)) == lparen)
+		{
+			raise(parenMismatch);
+			err = true;
+		}
+		//printf("Moving operator from operator stack to output stack\n");
+		evalStackPush(output, stackPop(&operators));
+	}
+	//stackFree(&operators);
+	return err;
 }
 
 char* substr(char *str, size_t begin, size_t len)
@@ -357,6 +539,7 @@ int main()
 	char* str = NULL;
 	token* tokens = NULL;
 	int numTokens = 0;
+	Stack expr;
 	int i;
 	str = ufgets(stdin);
 	while(str != NULL && strcmp(str, "quit") != 0)
@@ -375,13 +558,33 @@ int main()
 			free(str);
 			str = NULL;
 
-			printf("\t%d tokens:\n", numTokens);
+			/*printf("\t%d tokens:\n", numTokens);
 			for(i = 0; i < numTokens; i++)
 			{
 				printf("\t\"%s\"", tokens[i]);
 				if(type(*tokens[i]) == digit)
 					printf(" = %f", buildNumber(tokens[i]));
 				printf("\n");
+			}*/
+
+			// Convert to postfix
+			stackInit(&expr);
+			postfix(tokens, numTokens, &expr);
+			//stackReverse(&expr);
+			/*printf("\tReversed postfix stack:\n\t");
+			for(i = 0; i < stackSize(&expr); i++)
+			{
+				printf("%s ", (token)(expr.content[i]));
+			}
+			printf("\n");*/
+			if(stackSize(&expr) != 1)
+			{
+				printf("\tError evaluating expression\n");
+			}
+			else
+			{
+				token result = stackPop(&expr);
+				printf("\t= %s\n", result);
 			}
 
 			for(i = 0; i < numTokens; i++)
@@ -391,6 +594,7 @@ int main()
 			free(tokens);
 			tokens = NULL;
 			numTokens = 0;
+			stackFree(&expr);
 		}
 
 		str = ufgets(stdin);
