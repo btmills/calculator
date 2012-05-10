@@ -16,10 +16,20 @@ typedef enum
 	lparen,
 	rparen,
 	digit,
+	value,
 	decimal,
 	space,
+	text,
 	invalid
 } Symbol;
+
+struct Preferences
+{
+	struct Display
+	{
+		bool tokens;
+	} display;
+} prefs;
 
 typedef enum
 {
@@ -58,10 +68,11 @@ inline unsigned int toDigit(char ch)
 number buildNumber(token str)
 {
 	number result = 0;
-	while(*str && *str != '.')
+	/*while(*str && *str != '.')
 	{
 		result = result * 10 + toDigit(*str++);
-	}
+	}*/
+	result = strtod(str, NULL);
 	return result;
 }
 
@@ -193,6 +204,60 @@ Symbol type(char ch)
 		case ' ':
 			result = space;
 			break;
+		case 'A':
+		case 'B':
+		case 'C':
+		case 'D':
+		case 'E':
+		case 'F':
+		case 'G':
+		case 'H':
+		case 'I':
+		case 'J':
+		case 'K':
+		case 'L':
+		case 'M':
+		case 'N':
+		case 'O':
+		case 'P':
+		case 'Q':
+		case 'R':
+		case 'S':
+		case 'T':
+		case 'U':
+		case 'V':
+		case 'W':
+		case 'X':
+		case 'Y':
+		case 'Z':
+		case 'a':
+		case 'b':
+		case 'c':
+		case 'd':
+		case 'e':
+		case 'f':
+		case 'g':
+		case 'h':
+		case 'i':
+		case 'j':
+		case 'k':
+		case 'l':
+		case 'm':
+		case 'n':
+		case 'o':
+		case 'p':
+		case 'q':
+		case 'r':
+		case 's':
+		case 't':
+		case 'u':
+		case 'v':
+		case 'w':
+		case 'x':
+		case 'y':
+		case 'z':
+			result = text;
+			break;
 		default:
 			result = invalid;
 			break;
@@ -202,7 +267,24 @@ Symbol type(char ch)
 
 Symbol tokenType(token tk)
 {
-	return type(*tk);
+	Symbol ret = type(*tk);
+	switch(ret)
+	{
+		case addop:
+			if(*tk == '-' && strlen(tk) > 1)
+				ret = tokenType(tk+1);
+			break;
+		case decimal:
+		case digit:
+			ret = value;
+			break;
+	}
+	return ret;
+}
+
+token tokenizeNumber(char *str)
+{
+	;
 }
 
 int tokenize(char *str, char *(**tokensRef))
@@ -216,18 +298,74 @@ int tokenize(char *str, char *(**tokensRef))
 		if(type(ch) == invalid) // Stop tokenizing when we encounter an invalid character
 			break;
 
-		char* token = NULL;
+		token newToken = NULL;
 		switch(type(ch))
 		{
 			case addop:
+				{
+					// Check if this is a negative
+					if(ch == '-'
+						&& (numTokens == 0
+							|| (tokenType(tokens[numTokens-1]) == addop
+								|| tokenType(tokens[numTokens-1]) == multop
+								|| tokenType(tokens[numTokens-1]) == expop
+								|| tokenType(tokens[numTokens-1]) == lparen)))
+					{
+						// Assemble an n-character (plus null-terminator) number token
+						{
+							int len = 1;
+							bool hasDecimal = false;
+							bool hasExponent = false;
+
+							if(type(ch) == decimal) // Allow numbers to start with decimal
+							{
+								//printf("Decimal\n");
+								hasDecimal = true;
+								len++;
+								newToken = (char*)malloc((len + 1) * sizeof(char));
+								newToken[0] = '0';
+								newToken[1] = '.';
+							}
+							else // Numbers that do not start with decimal
+							{
+								newToken = (char*)malloc((len + 1) * sizeof(char)); // Leave room for '\0'
+								newToken[len-1] = ch;
+							}
+
+							// Assemble rest of number
+							for(; // Don't change len
+								*ptr // There is a next character and it is not null
+								&& (type(*ptr) == digit // The next character is a digit
+								 	|| ((type(*ptr) == decimal // Or the next character is a decimal
+								 		&& hasDecimal == 0)) // But we have not added a decimal
+								 	|| ((*ptr == 'E' || *ptr == 'e') // Or the next character is an exponent
+								 		&& hasExponent == false)); // But we have not added an exponent yet
+								++len)
+							{
+								if(type(*ptr) == decimal)
+									hasDecimal = true;
+								else if(*ptr == 'E' || *ptr == 'e')
+									hasExponent = true;
+								newToken = (char*)realloc(newToken, (len + 1) * sizeof(char)); // Leave room for '\0'
+								newToken[len] = *ptr++;
+							}
+
+							// Append null-terminator
+							newToken[len] = '\0';
+						}
+						break;
+					}
+					// If it's not part of a number, it's an op - fall through
+				}
 			case multop:
+			case expop:
 			case lparen:
 			case rparen:
 				// Assemble a single-character (plus null-terminator) operation token
 				{
-					token = (char*)malloc(2 * sizeof(char)); // Leave room for '\0'
-					token[0] = ch;
-					token[1] = '\0';
+					newToken = (char*)malloc(2 * sizeof(char)); // Leave room for '\0'
+					newToken[0] = ch;
+					newToken[1] = '\0';
 				}
 				break;
 			case digit:
@@ -236,36 +374,69 @@ int tokenize(char *str, char *(**tokensRef))
 				{
 					int len = 1;
 					bool hasDecimal = false;
-					// Can only have one decimal point
-					if(type(ch) == decimal)
+					bool hasExponent = false;
+
+					if(type(ch) == decimal) // Allow numbers to start with decimal
+					{
+						//printf("Decimal\n");
 						hasDecimal = true;
-					token = (char*)malloc((len + 1) * sizeof(char)); // Leave room for '\0'
-					token[0] = ch;
-					for(len = 1;
+						len++;
+						newToken = (char*)malloc((len + 1) * sizeof(char));
+						newToken[0] = '0';
+						newToken[1] = '.';
+					}
+					else // Numbers that do not start with decimal
+					{
+						newToken = (char*)malloc((len + 1) * sizeof(char)); // Leave room for '\0'
+						newToken[len-1] = ch;
+					}
+
+					// Assemble rest of number
+					for(; // Don't change len
 						*ptr // There is a next character and it is not null
 						&& (type(*ptr) == digit // The next character is a digit
 						 	|| ((type(*ptr) == decimal // Or the next character is a decimal
-						 		&& hasDecimal == 0))); // But we have not added a decimal yet
+						 		&& hasDecimal == 0)) // But we have not added a decimal
+						 	|| ((*ptr == 'E' || *ptr == 'e') // Or the next character is an exponent
+						 		&& hasExponent == false)); // But we have not added an exponent yet
 						++len)
 					{
 						if(type(*ptr) == decimal)
 							hasDecimal = true;
-						token = (char*)realloc(token, (len + 1) * sizeof(char)); // Leave room for '\0'
-						token[len] = *ptr++;
+						else if(*ptr == 'E' || *ptr == 'e')
+							hasExponent = true;
+						newToken = (char*)realloc(newToken, (len + 1) * sizeof(char)); // Leave room for '\0'
+						newToken[len] = *ptr++;
 					}
-					token[len] = '\0';
+
+					// Append null-terminator
+					newToken[len] = '\0';
+				}
+				break;
+			case text:
+				// Assemble an n-character (plus null-terminator) text token
+				{
+					int len = 1;
+					newToken = (char*)malloc((len + 1) * sizeof(char)); // Leave room for '\0'
+					newToken[0] = ch;
+					for(len = 1; *ptr && type(*ptr) == text; ++len)
+					{
+						newToken = (char*)realloc(newToken, (len + 1) * sizeof(char)); // Leave room for '\0'
+						newToken[len] = *ptr++;
+					}
+					newToken[len] = '\0';
 				}
 				break;
 		}
 		// Add to list of tokens
-		if(token != NULL)
+		if(newToken != NULL)
 		{
 			numTokens++;
 			/*if(tokens == NULL) // First allocation
 				tokens = (char**)malloc(numTokens * sizeof(char*));
 			else*/
 				tokens = (char**)realloc(tokens, numTokens * sizeof(char*));
-			tokens[numTokens - 1] = token;
+			tokens[numTokens - 1] = newToken;
 		}
 	}
 	*tokensRef = tokens; // Send back out
@@ -337,7 +508,7 @@ void evalStackPush(Stack *s, token val)
 				}
 			}
 			break;
-		case digit:
+		case value:
 			{
 				stackPush(s, val);
 			}
@@ -356,7 +527,7 @@ bool postfix(token *tokens, int numTokens, Stack *output)
 		// From Wikipedia/Shunting-yard_algorithm:
 		switch(tokenType(tokens[i]))
 		{
-			case digit:
+			case value:
 				{
 					// If the token is a number, then add it to the output queue.
 					//printf("Adding number to output stack\n");
@@ -517,21 +688,61 @@ int strSplit(char *str, const char split, char *(**partsRef))
 	return numParts;
 }
 
-bool isCommand(char *str)
+/*bool isCommand(char *str)
 {
 	bool result = false;
-	char **subs = NULL;
-	int len = strSplit(str, ' ', &subs);
-	if(len >= 1 && strcmp(subs[0], "set") == 0)
+	char **words = NULL;
+	int len = strSplit(str, ' ', &words);
+	if(len >= 1 && strcmp(words[0], "set") == 0)
 	{
 		result = true;
 	}
 	return result;
-}
+}*/
 
-void execCommand(char *str)
+bool execCommand(char *str)
 {
-	printf("\tcommand \"%s\" recognized\n", str);
+	bool recognized = false;
+	char **words = NULL;
+	int len = strSplit(str, ' ', &words);
+	 if(len >= 1 && strcmp(words[0], "get") == 0)
+	{
+		if(len >= 2 && strcmp(words[1], "display") == 0)
+		{
+			if(len >= 3 && strcmp(words[2], "tokens") == 0)
+			{
+				recognized = true;
+				printf("\t%s\n", (prefs.display.tokens ? "on" : "off"));
+			}
+		}
+	}
+	/*else if(len >= 1 && strcmp(words[0], "quit") == 0)
+	{
+		free(str);
+		str = NULL;
+		exit(EXIT_SUCCESS);
+	}*/
+	else if(len >= 1 && strcmp(words[0], "set") == 0)
+	{
+		if(len >= 2 && strcmp(words[1], "display") == 0)
+		{
+			if(len >= 3 && strcmp(words[2], "tokens") == 0)
+			{
+				if(len >= 4 && strcmp(words[3], "on") == 0)
+				{
+					recognized = true;
+					prefs.display.tokens = true;
+				}
+				else if(len >= 4 && strcmp(words[3], "off") == 0)
+				{
+					recognized = true;
+					prefs.display.tokens = false;
+				}
+			}
+		}
+	}
+
+	return recognized;
 }
 
 int main()
@@ -544,10 +755,10 @@ int main()
 	str = ufgets(stdin);
 	while(str != NULL && strcmp(str, "quit") != 0)
 	{
-		if(type(*str) == invalid && isCommand(str))
+		if(type(*str) == text && execCommand(str))
 		{
 			// Do something with command
-			execCommand(str);
+			//execCommand(str);
 
 			free(str);
 			str = NULL;
@@ -558,14 +769,17 @@ int main()
 			free(str);
 			str = NULL;
 
-			/*printf("\t%d tokens:\n", numTokens);
-			for(i = 0; i < numTokens; i++)
+			if(prefs.display.tokens)
 			{
-				printf("\t\"%s\"", tokens[i]);
-				if(type(*tokens[i]) == digit)
-					printf(" = %f", buildNumber(tokens[i]));
-				printf("\n");
-			}*/
+				printf("\t%d tokens:\n", numTokens);
+				for(i = 0; i < numTokens; i++)
+				{
+					printf("\t\"%s\"", tokens[i]);
+					if(tokenType(tokens[i]) == value)
+						printf(" = %f", buildNumber(tokens[i]));
+					printf("\n");
+				}
+			}
 
 			// Convert to postfix
 			stackInit(&expr);
@@ -599,6 +813,9 @@ int main()
 
 		str = ufgets(stdin);
 	}
+
 	free(str);
 	str = NULL;
+
+	return EXIT_SUCCESS;
 }
