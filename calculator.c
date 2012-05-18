@@ -8,6 +8,8 @@
 #define true 1
 #define false 0
 
+#define PI 3.141592653589793
+
 typedef enum
 {
 	addop,
@@ -20,6 +22,9 @@ typedef enum
 	decimal,
 	space,
 	text,
+	function,
+	identifier,
+	argsep,
 	invalid
 } Symbol;
 
@@ -28,7 +33,12 @@ struct Preferences
 	struct Display
 	{
 		bool tokens;
+		bool postfix;
 	} display;
+	struct Mode
+	{
+		bool degrees;
+	} mode;
 } prefs;
 
 typedef enum
@@ -81,6 +91,49 @@ token num2Str(number num)
 	token str = (token)malloc(20*sizeof(char));
 	snprintf(str, 19, "%f", num);
 	return str;
+}
+
+inline number toRadians(number degrees)
+{
+	return degrees * PI / 180.0;
+}
+
+inline number toDegrees(number radians)
+{
+	return radians * 180.0 / PI;
+}
+
+token doFunc(token input, token function)
+{
+	number num = buildNumber(input);
+	number result = num;
+
+	if(strcmp(function, "abs") == 0)
+		result = abs(num);
+	else if(strcmp(function, "floor") == 0)
+		result = floor(num);
+	else if(strcmp(function, "ceil") == 0)
+		result = ceil(num);
+	else if(strcmp(function, "sin") == 0)
+		result = !prefs.mode.degrees ? sin(num) : sin(toRadians(num));
+	else if(strcmp(function, "cos") == 0)
+		result = !prefs.mode.degrees ? cos(num) : cos(toRadians(num));
+	else if(strcmp(function, "tan") == 0)
+		result = !prefs.mode.degrees ? tan(num) : tan(toRadians(num));
+	else if(strcmp(function, "arcsin") == 0)
+		result = !prefs.mode.degrees ? asin(num) : toDegrees(asin(num));
+	else if(strcmp(function, "arccos") == 0)
+		result = !prefs.mode.degrees ? acos(num) : toDegrees(acos(num));
+	else if(strcmp(function, "arctan") == 0)
+		result = !prefs.mode.degrees ? atan(num) : toDegrees(atan(num));
+	else if(strcmp(function, "sqrt") == 0)
+		result = sqrt(num);
+	else if(strcmp(function, "cbrt") == 0)
+		result = cbrt(num);
+	else if(strcmp(function, "log") == 0)
+		result = log(num);
+
+	return num2Str(result);
 }
 
 token doOp(token loperand, token op, token roperand)
@@ -186,6 +239,15 @@ Symbol type(char ch)
 		case ')':
 			result = rparen;
 			break;
+		case '.':
+			result = decimal;
+			break;
+		case ' ':
+			result = space;
+			break;
+		case ',':
+			result = argsep;
+			break;
 		case '0':
 		case '1':
 		case '2':
@@ -197,12 +259,6 @@ Symbol type(char ch)
 		case '8':
 		case '9':
 			result = digit;
-			break;
-		case '.':
-			result = decimal;
-			break;
-		case ' ':
-			result = space;
 			break;
 		case 'A':
 		case 'B':
@@ -265,11 +321,33 @@ Symbol type(char ch)
 	return result;
 }
 
+bool isFunction(token tk)
+{
+	return (strcmp(tk, "abs") == 0
+		|| strcmp(tk, "floor") == 0
+		|| strcmp(tk, "ceil") == 0
+		|| strcmp(tk, "sin") == 0
+		|| strcmp(tk, "cos") == 0
+		|| strcmp(tk, "tan") == 0
+		|| strcmp(tk, "arcsin") == 0
+		|| strcmp(tk, "arccos") == 0
+		|| strcmp(tk, "arctan") == 0
+		|| strcmp(tk, "sqrt") == 0
+		|| strcmp(tk, "cbrt") == 0
+		|| strcmp(tk, "log") == 0);
+}
+
 Symbol tokenType(token tk)
 {
 	Symbol ret = type(*tk);
 	switch(ret)
 	{
+		case text:
+			if(isFunction(tk))
+				ret = function;
+			else
+				ret = identifier;
+			break;
 		case addop:
 			if(*tk == '-' && strlen(tk) > 1)
 				ret = tokenType(tk+1);
@@ -361,6 +439,7 @@ int tokenize(char *str, char *(**tokensRef))
 			case expop:
 			case lparen:
 			case rparen:
+			case argsep:
 				// Assemble a single-character (plus null-terminator) operation token
 				{
 					newToken = (char*)malloc(2 * sizeof(char)); // Leave room for '\0'
@@ -483,8 +562,19 @@ int precedence(token op1, token op2)
 
 void evalStackPush(Stack *s, token val)
 {
+	if(prefs.display.postfix)
+		printf("\t%s\n", val);
+
 	switch(tokenType(val))
 	{
+		case function:
+			{
+				token operand, res;
+				operand = (token)stackPop(s);
+				res = doFunc(operand, val);
+				stackPush(s, res);
+			}
+			break;
 		case expop:
 		case multop:
 		case addop:
@@ -532,6 +622,38 @@ bool postfix(token *tokens, int numTokens, Stack *output)
 					// If the token is a number, then add it to the output queue.
 					//printf("Adding number to output stack\n");
 					evalStackPush(output, tokens[i]);
+				}
+				break;
+			case function:
+				{
+					// If the token is a function token, then push it onto the stack.
+					stackPush(&operators, tokens[i]);
+				}
+				break;
+			case argsep:
+				{
+					/*
+					 * If the token is a function argument separator (e.g., a comma):
+					 *     Until the token at the top of the stack is a left
+					 *     paren, pop operators off the stack onto the output
+					 *     queue. If no left paren encountered, either separator
+					 *     was misplaced or parens mismatched.
+					 */
+					while(stackSize(&operators) > 0
+						&& tokenType((token)stackTop(&operators)) != lparen
+						&& stackSize(&operators) > 1)
+					{
+						//printf("Moving operator from operator stack to output stack\n");
+						evalStackPush(output, stackPop(&operators));
+					}
+					if(stackSize(&operators) > 0
+						&& tokenType((token)stackTop(&operators)) != lparen)
+					{
+						err = true;
+						raise(parenMismatch);
+					}
+					//printf("Removing left paren from operator stack\n");
+					stackPop(&operators); // Discard lparen
 				}
 				break;
 			case addop:
@@ -589,6 +711,7 @@ bool postfix(token *tokens, int numTokens, Stack *output)
 					//printf("Removing left paren from operator stack\n");
 					stackPop(&operators); // Discard lparen
 				}
+				break;
 		}
 	}
 	/*
@@ -705,7 +828,7 @@ bool execCommand(char *str)
 	bool recognized = false;
 	char **words = NULL;
 	int len = strSplit(str, ' ', &words);
-	 if(len >= 1 && strcmp(words[0], "get") == 0)
+	if(len >= 1 && strcmp(words[0], "get") == 0)
 	{
 		if(len >= 2 && strcmp(words[1], "display") == 0)
 		{
@@ -714,14 +837,18 @@ bool execCommand(char *str)
 				recognized = true;
 				printf("\t%s\n", (prefs.display.tokens ? "on" : "off"));
 			}
+			else if(len >= 3 && strcmp(words[2], "postfix") == 0)
+			{
+				recognized = true;
+				printf("\t%s\n", (prefs.display.postfix ? "on" : "off"));
+			}
+		}
+		else if(len >= 2 && strcmp(words[1], "mode") == 0)
+		{
+			recognized = true;
+			printf("\t%s\n", (prefs.mode.degrees ? "degrees" : "radians"));
 		}
 	}
-	/*else if(len >= 1 && strcmp(words[0], "quit") == 0)
-	{
-		free(str);
-		str = NULL;
-		exit(EXIT_SUCCESS);
-	}*/
 	else if(len >= 1 && strcmp(words[0], "set") == 0)
 	{
 		if(len >= 2 && strcmp(words[1], "display") == 0)
@@ -738,6 +865,32 @@ bool execCommand(char *str)
 					recognized = true;
 					prefs.display.tokens = false;
 				}
+			}
+			else if(len >= 3 && strcmp(words[2], "postfix") == 0)
+			{
+				if(len >= 4 && strcmp(words[3], "on") == 0)
+				{
+					recognized = true;
+					prefs.display.postfix = true;
+				}
+				else if(len >= 4 && strcmp(words[3], "off") == 0)
+				{
+					recognized = true;
+					prefs.display.postfix = false;
+				}
+			}
+		}
+		else if(len >= 2 && strcmp(words[1], "mode") == 0)
+		{
+			if(len >= 3 && strcmp(words[2], "radians") == 0)
+			{
+				recognized = true;
+				prefs.mode.degrees = false;
+			}
+			else if(len >= 3 && strcmp(words[2], "degrees") == 0)
+			{
+				recognized = true;
+				prefs.mode.degrees = true;
 			}
 		}
 	}
@@ -783,6 +936,8 @@ int main()
 
 			// Convert to postfix
 			stackInit(&expr);
+			if(prefs.display.postfix)
+				printf("\tPostfix stack:\n");
 			postfix(tokens, numTokens, &expr);
 			//stackReverse(&expr);
 			/*printf("\tReversed postfix stack:\n\t");
@@ -797,8 +952,9 @@ int main()
 			}
 			else
 			{
-				token result = stackPop(&expr);
-				printf("\t= %s\n", result);
+				//token result = stackPop(&expr);
+				//printf("\t= %s\n", result);
+				printf("\t= %s\n", (char*)stackTop(&expr));
 			}
 
 			for(i = 0; i < numTokens; i++)
