@@ -14,6 +14,7 @@ int main()
 	stackInit(&ints);
 
 	// Test strings
+	printf("Test strings:\n");
 
 	str = "this";
 	printf("Pushing \"%s\"\n", str);
@@ -31,14 +32,12 @@ int main()
 	printf("Pushing \"%s\"\n", str);
 	stackPush(&strs, str);
 	printf("Top of stack: \"%s\"\n", (char*)stackTop(&strs));
-	printf("\n");
 
 	printf("Stack before stackPop():\n");
 	for(i = stackSize(&strs) - 1; i >= 0; i--)
 	{
 		printf("\"%s\"\n", (char*)(strs.content[i]));
 	}
-	printf("\n");
 
 	str = stackPop(&strs);
 	printf("stackPop() returned \"%s\"\n", str);
@@ -52,6 +51,7 @@ int main()
 	stackFree(&strs);
 
 	// Test ints
+	printf("\n\nTest ints:\n");
 
 	for(i = 1; i <= 4; i++)
 	{
@@ -61,14 +61,12 @@ int main()
 		stackPush(&ints, add);
 		printf("Top of stack: %d\n", *(int*)stackTop(&ints));
 	}
-	printf("\n");
 
 	printf("Stack before stackPop():\n");
 	for(i = stackSize(&ints) - 1; i >= 0; i--)
 	{
 		printf("%d\n", *((int*)(ints.content[i])));
 	}
-	printf("\n");
 
 	val = *(int*)stackPop(&ints);
 	printf("stackPop() returned %d\n", val);
