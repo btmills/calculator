@@ -8,9 +8,9 @@ This is a command-line calculator, written in C, supporting the standard mathema
 *	`+` Addition
 *	`-` Subtraction
 *	`*` Multiplication
-*	/ Division
-*	^ Exponent
-*	% Modulus
+*	`/` Division
+*	`^` Exponent
+*	`%` Modulus
 
 ### Functions
 *	`abs(...)` Absolute value
@@ -51,3 +51,7 @@ Try typing `set display tokens on` and entering an expression. The calculator wi
 		* `postfix (off/on)` Display the postfix stack before evaluation
 		* `tokens (off/on)` Display the result of tokenization
 	* `mode (radians/degrees)` Evaluation mode of trigonometric functions 
+
+## Building/Running
+
+On UNIX-like systems, entering `gcc -o calculator calculator.c stack.c` in the terminal will build the calculator (tested on Mac). To run, enter `.\\calculator`. Type any mathematical expression, for example, `3*(2^4) - 3*floor(2 * sin(3.14 / 2))` and press &lt;Enter&gt;. Type `quit` to close.
