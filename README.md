@@ -4,10 +4,10 @@
 
 This is a command-line calculator, written in C, supporting the standard mathematical operations and a set of functions. Commands can be entered in standard infix syntax, with parentheses denoting nonstandard order of operations. You know, like you were taught in elementary and middle school.
 
-### Operations
-*	\+ Addition
-*	\- Subtraction
-*	\* Multiplication
+### Operators
+*	`+` Addition
+*	`-` Subtraction
+*	`*` Multiplication
 *	/ Division
 *	^ Exponent
 *	% Modulus
@@ -38,8 +38,16 @@ Computation begins with the tokenization of the input string, maintaining origin
 
 ## What's Cool
 
-1. **Untyped stack**
-Elements are stored on the stack as `void *`s. This means that any type of element can be stored on the stack at the same time as any element of any other type - including custom types - as long as an element's type is known when it is popped off the stack.
+1. **Untyped stack**  
+Elements are stored on the stack as `void *` types. This means that any type of element can be stored on the stack at the same time as any element of any other type - including custom types - as long as an element's type is known when it is popped off the stack.
 
-1. **Early evaluation**
+1. **Early evaluation**  
 There is no separate evaluation step; elements are evaluated on the postfix stack as soon as all terms are available. Due to the nature of the [shunting-yard algorithm][sy], as soon as an operator is pushed, it can be evaluated. When the `evalStackPush()` function sees an operator, rather than pushing it, pops its operands, runs the computation, and pushes the result. This means that once the input expression has been converted to postfix notation, the only element on the postfix stack is the result of the calculation.
+
+1. **Settings**  
+Try typing `set display tokens on` and entering an expression. The calculator will display the result of its tokenization. Starting the calculator and entering `get mode` reveals that it defaults to `radians`. Options are as follows:
+	* `get/set` Read or change the value of a setting
+	* `display` Settings to do with the display of the evaluation process
+		* `postfix (off/on)` Display the postfix stack before evaluation
+		* `tokens (off/on)` Display the result of tokenization
+	* `mode (radians/degrees)` Evaluation mode of trigonometric functions 
