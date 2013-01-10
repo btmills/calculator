@@ -54,4 +54,4 @@ Try typing `set display tokens on` and entering an expression. The calculator wi
 
 ## Building and Running
 
-On UNIX-like systems, entering `gcc -o calculator calculator.c stack.c` in the terminal will build the calculator (tested on Mac). To run, enter `.\calculator`. Type any mathematical expression, for example, `3*(2^4) - 3*floor(2 * sin(3.14 / 2))` and press the Enter key. Type `quit` to close.
+Build with `make`. Clean with `make clean`. Run with `./calc`. Type any mathematical expression, for example, `3*(2^4) - 3*floor(2 * sin(3.14 / 2))` and press the Enter key. Type `quit` to close.
