@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h> // Temporary
+#include <unistd.h>
 #include "stack.h"
 
 #define bool char
@@ -904,13 +905,23 @@ bool execCommand(char *str)
 	return recognized;
 }
 
-int main()
+int main(int argc, char *argv[])
 {
 	char* str = NULL;
 	token* tokens = NULL;
 	int numTokens = 0;
 	Stack expr;
 	int i;
+	int ch, rflag = 0;
+	
+	while ((ch = getopt(argc, argv, "r")) != -1) {
+		switch (ch) {
+			case 'r':
+				rflag = 1;
+				break;
+		}
+	}
+	
 	str = ufgets(stdin);
 	while(str != NULL && strcmp(str, "quit") != 0)
 	{
@@ -960,7 +971,10 @@ int main()
 			{
 				//token result = stackPop(&expr);
 				//printf("\t= %s\n", result);
-				printf("\t= %s\n", (char*)stackTop(&expr));
+				if (rflag)
+					printf("%s\n", (char*)stackTop(&expr));
+				else
+					printf("\t= %s\n", (char*)stackTop(&expr));
 			}
 
 			for(i = 0; i < numTokens; i++)
