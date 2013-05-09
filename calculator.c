@@ -136,6 +136,8 @@ token doFunc(token input, token function)
 		result = cbrt(num);
 	else if(strcmp(function, "log") == 0)
 		result = log(num);
+	else if(strcmp(function, "exp") == 0)
+		result = exp(num);
 
 	return num2Str(result);
 }
@@ -341,7 +343,8 @@ bool isFunction(token tk)
 		|| strcmp(tk, "atan") == 0
 		|| strcmp(tk, "sqrt") == 0
 		|| strcmp(tk, "cbrt") == 0
-		|| strcmp(tk, "log") == 0);
+		|| strcmp(tk, "log") == 0
+		|| strcmp(tk, "exp") == 0);
 }
 
 Symbol tokenType(token tk)
