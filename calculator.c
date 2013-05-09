@@ -120,11 +120,14 @@ token doFunc(token input, token function)
 		result = !prefs.mode.degrees ? cos(num) : cos(toRadians(num));
 	else if(strcmp(function, "tan") == 0)
 		result = !prefs.mode.degrees ? tan(num) : tan(toRadians(num));
-	else if(strcmp(function, "arcsin") == 0)
+	else if(strcmp(function, "arcsin") == 0
+	     || strcmp(function, "asin") == 0)
 		result = !prefs.mode.degrees ? asin(num) : toDegrees(asin(num));
-	else if(strcmp(function, "arccos") == 0)
+	else if(strcmp(function, "arccos") == 0
+		 || strcmp(function, "acos") == 0)
 		result = !prefs.mode.degrees ? acos(num) : toDegrees(acos(num));
-	else if(strcmp(function, "arctan") == 0)
+	else if(strcmp(function, "arctan") == 0
+		 || strcmp(function, "atan") == 0)
 		result = !prefs.mode.degrees ? atan(num) : toDegrees(atan(num));
 	else if(strcmp(function, "sqrt") == 0)
 		result = sqrt(num);
@@ -332,6 +335,9 @@ bool isFunction(token tk)
 		|| strcmp(tk, "arcsin") == 0
 		|| strcmp(tk, "arccos") == 0
 		|| strcmp(tk, "arctan") == 0
+		|| strcmp(tk, "asin") == 0
+		|| strcmp(tk, "acos") == 0
+		|| strcmp(tk, "atan") == 0
 		|| strcmp(tk, "sqrt") == 0
 		|| strcmp(tk, "cbrt") == 0
 		|| strcmp(tk, "log") == 0);
