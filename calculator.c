@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h> // Temporary
+#include <unistd.h>
 #include "stack.h"
 
 #define bool char
@@ -109,7 +110,7 @@ token doFunc(token input, token function)
 	number result = num;
 
 	if(strcmp(function, "abs") == 0)
-		result = abs(num);
+		result = fabs(num);
 	else if(strcmp(function, "floor") == 0)
 		result = floor(num);
 	else if(strcmp(function, "ceil") == 0)
@@ -120,11 +121,14 @@ token doFunc(token input, token function)
 		result = !prefs.mode.degrees ? cos(num) : cos(toRadians(num));
 	else if(strcmp(function, "tan") == 0)
 		result = !prefs.mode.degrees ? tan(num) : tan(toRadians(num));
-	else if(strcmp(function, "arcsin") == 0)
+	else if(strcmp(function, "arcsin") == 0
+	     || strcmp(function, "asin") == 0)
 		result = !prefs.mode.degrees ? asin(num) : toDegrees(asin(num));
-	else if(strcmp(function, "arccos") == 0)
+	else if(strcmp(function, "arccos") == 0
+		 || strcmp(function, "acos") == 0)
 		result = !prefs.mode.degrees ? acos(num) : toDegrees(acos(num));
-	else if(strcmp(function, "arctan") == 0)
+	else if(strcmp(function, "arctan") == 0
+		 || strcmp(function, "atan") == 0)
 		result = !prefs.mode.degrees ? atan(num) : toDegrees(atan(num));
 	else if(strcmp(function, "sqrt") == 0)
 		result = sqrt(num);
@@ -132,6 +136,8 @@ token doFunc(token input, token function)
 		result = cbrt(num);
 	else if(strcmp(function, "log") == 0)
 		result = log(num);
+	else if(strcmp(function, "exp") == 0)
+		result = exp(num);
 
 	return num2Str(result);
 }
@@ -332,9 +338,13 @@ bool isFunction(token tk)
 		|| strcmp(tk, "arcsin") == 0
 		|| strcmp(tk, "arccos") == 0
 		|| strcmp(tk, "arctan") == 0
+		|| strcmp(tk, "asin") == 0
+		|| strcmp(tk, "acos") == 0
+		|| strcmp(tk, "atan") == 0
 		|| strcmp(tk, "sqrt") == 0
 		|| strcmp(tk, "cbrt") == 0
-		|| strcmp(tk, "log") == 0);
+		|| strcmp(tk, "log") == 0
+		|| strcmp(tk, "exp") == 0);
 }
 
 Symbol tokenType(token tk)
@@ -898,13 +908,23 @@ bool execCommand(char *str)
 	return recognized;
 }
 
-int main()
+int main(int argc, char *argv[])
 {
 	char* str = NULL;
 	token* tokens = NULL;
 	int numTokens = 0;
 	Stack expr;
 	int i;
+	int ch, rflag = 0;
+	
+	while ((ch = getopt(argc, argv, "r")) != -1) {
+		switch (ch) {
+			case 'r':
+				rflag = 1;
+				break;
+		}
+	}
+	
 	str = ufgets(stdin);
 	while(str != NULL && strcmp(str, "quit") != 0)
 	{
@@ -954,7 +974,10 @@ int main()
 			{
 				//token result = stackPop(&expr);
 				//printf("\t= %s\n", result);
-				printf("\t= %s\n", (char*)stackTop(&expr));
+				if (rflag)
+					printf("%s\n", (char*)stackTop(&expr));
+				else
+					printf("\t= %s\n", (char*)stackTop(&expr));
 			}
 
 			for(i = 0; i < numTokens; i++)
