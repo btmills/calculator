@@ -53,8 +53,8 @@ Try typing `set display tokens on` and entering an expression. The calculator wi
 		* `tokens (off/on)` Display the result of tokenization
 	* `mode (radians/degrees)` Evaluation mode of trigonometric functions 
 
-There is also a `-r` command line option which removes the `=` from the output, outputting only the result value. This is designed for use in situations such as shell scripting, where only the raw, unprocessed value is desired.
-
 ## Building and Running
 
 Build with `make`. Clean with `make clean`. Run with `./calc`. Type any mathematical expression, for example, `3*(2^4) - 3*floor(2 * sin(3.14 / 2))` and press the Enter key. Type `quit` to close.
+
+There is a `-r` command line option which removes the `=` from the output, outputting only the result value. This is designed for use in situations such as shell scripting, where only the raw, unprocessed value is desired.
