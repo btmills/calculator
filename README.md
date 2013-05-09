@@ -25,6 +25,7 @@ This is a command-line calculator, written in C, supporting the standard mathema
 *	`sqrt(...)` Square root
 *	`cbrt(...)` Cube root
 *	`log(...)` Logarithm
+*	`exp(...)` Exponentiation (e^x)
 
 ## Why
 
@@ -51,6 +52,8 @@ Try typing `set display tokens on` and entering an expression. The calculator wi
 		* `postfix (off/on)` Display the postfix stack before evaluation
 		* `tokens (off/on)` Display the result of tokenization
 	* `mode (radians/degrees)` Evaluation mode of trigonometric functions 
+
+There is also a `-r` command line option which removes the `=` from the output, outputting only the result value. This is designed for use in situations such as shell scripting, where only the raw, unprocessed value is desired.
 
 ## Building and Running
 
