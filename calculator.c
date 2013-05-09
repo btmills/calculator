@@ -110,7 +110,7 @@ token doFunc(token input, token function)
 	number result = num;
 
 	if(strcmp(function, "abs") == 0)
-		result = abs(num);
+		result = fabs(num);
 	else if(strcmp(function, "floor") == 0)
 		result = floor(num);
 	else if(strcmp(function, "ceil") == 0)
