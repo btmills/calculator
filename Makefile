@@ -1,10 +1,12 @@
 CC = gcc
-CFLAGS = -Wall
-LDFLAGS = $(CFLAGS)
+CFLAGS = -c -Wall
+LFLAGS = -Wall
 
-all: calc
-calc: calculator.c stack.c stack.h
-	   $(CC) $(CFLAGS) -o calc calculator.c stack.c
+calc: stack.o calculator.c
+	$(CC) $(LFLAGS) -o calc calculator.c stack.c
+
+stack.o: stack.c stack.h
+	$(CC) $(CFLAGS) stack.c
 
 clean:
-	   rm -f *.o calc
+	rm -f *.o calc
