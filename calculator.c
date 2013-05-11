@@ -916,7 +916,7 @@ int main(int argc, char *argv[])
 	Stack expr;
 	int i;
 	int ch, rflag = 0;
-	
+
 	while ((ch = getopt(argc, argv, "r")) != -1) {
 		switch (ch) {
 			case 'r':
@@ -924,7 +924,7 @@ int main(int argc, char *argv[])
 				break;
 		}
 	}
-	
+
 	str = ufgets(stdin);
 	while(str != NULL && strcmp(str, "quit") != 0)
 	{
@@ -972,12 +972,9 @@ int main(int argc, char *argv[])
 			}
 			else
 			{
-				//token result = stackPop(&expr);
-				//printf("\t= %s\n", result);
-				if (rflag)
-					printf("%s\n", (char*)stackTop(&expr));
-				else
-					printf("\t= %s\n", (char*)stackTop(&expr));
+				if (!rflag)
+					printf("\t= ");
+				printf("%s\n", (char*)stackTop(&expr));
 			}
 
 			for(i = 0; i < numTokens; i++)
