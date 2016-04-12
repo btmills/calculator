@@ -94,12 +94,12 @@ token num2Str(number num)
 	return str;
 }
 
-inline number toRadians(number degrees)
+number toRadians(number degrees)
 {
 	return degrees * PI / 180.0;
 }
 
-inline number toDegrees(number radians)
+number toDegrees(number radians)
 {
 	return radians * 180.0 / PI;
 }
