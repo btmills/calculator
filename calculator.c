@@ -11,6 +11,7 @@
 
 #define PI 3.141592653589793
 
+#define MAXTOKENLENGTH 512
 typedef enum
 {
 	addop,
@@ -50,6 +51,8 @@ typedef enum
 } Error;
 
 typedef char* token;
+token* calcTokens = NULL;
+int nrCalcTokens = 0;
 
 typedef double number;
 
@@ -89,8 +92,8 @@ number buildNumber(token str)
 
 token num2Str(number num)
 {
-	token str = (token)malloc(20*sizeof(char));
-	snprintf(str, 19, "%f", num);
+	token str = (token)malloc(MAXTOKENLENGTH*sizeof(char));
+	snprintf(str, MAXTOKENLENGTH-1, "%.20f", num);
 	return str;
 }
 
@@ -366,27 +369,33 @@ Symbol tokenType(token tk)
 		case digit:
 			ret = value;
 			break;
+		default:
+			break;
 	}
 	return ret;
 }
 
-token tokenizeNumber(char *str)
-{
-	;
-}
 
 int tokenize(char *str, char *(**tokensRef))
 {
 	char** tokens = NULL;
+	char** tmp = NULL;
 	char* ptr = str;
 	char ch = '\0';
 	int numTokens = 0;
-	while(ch = *ptr++)
+	char* tmpToken = malloc((MAXTOKENLENGTH+1) * sizeof(char));
+	if (!tmpToken)
+	{
+		fprintf(stderr, "Malloc of temporary buffer failed\n");
+		return 0;
+	}
+	while((ch = *ptr++))
 	{
 		if(type(ch) == invalid) // Stop tokenizing when we encounter an invalid character
 			break;
 
 		token newToken = NULL;
+		memset(tmpToken, '\0', MAXTOKENLENGTH+1);
 		switch(type(ch))
 		{
 			case addop:
@@ -410,36 +419,35 @@ int tokenize(char *str, char *(**tokensRef))
 								//printf("Decimal\n");
 								hasDecimal = true;
 								len++;
-								newToken = (char*)malloc((len + 1) * sizeof(char));
-								newToken[0] = '0';
-								newToken[1] = '.';
+								tmpToken[0] = '0';
+								tmpToken[1] = '.';
 							}
 							else // Numbers that do not start with decimal
 							{
-								newToken = (char*)malloc((len + 1) * sizeof(char)); // Leave room for '\0'
-								newToken[len-1] = ch;
+								tmpToken[len-1] = ch;
 							}
 
 							// Assemble rest of number
 							for(; // Don't change len
 								*ptr // There is a next character and it is not null
+								&& len <= MAXTOKENLENGTH 
 								&& (type(*ptr) == digit // The next character is a digit
 								 	|| ((type(*ptr) == decimal // Or the next character is a decimal
 								 		&& hasDecimal == 0)) // But we have not added a decimal
 								 	|| ((*ptr == 'E' || *ptr == 'e') // Or the next character is an exponent
-								 		&& hasExponent == false)); // But we have not added an exponent yet
+								 		&& hasExponent == false) // But we have not added an exponent yet
+								|| ((*ptr == '+' || *ptr == '-') && hasExponent == true)); // Exponent with sign
 								++len)
 							{
 								if(type(*ptr) == decimal)
 									hasDecimal = true;
 								else if(*ptr == 'E' || *ptr == 'e')
 									hasExponent = true;
-								newToken = (char*)realloc(newToken, (len + 1) * sizeof(char)); // Leave room for '\0'
-								newToken[len] = *ptr++;
+								tmpToken[len] = *ptr++;
 							}
 
 							// Append null-terminator
-							newToken[len] = '\0';
+							tmpToken[len] = '\0';
 						}
 						break;
 					}
@@ -452,9 +460,8 @@ int tokenize(char *str, char *(**tokensRef))
 			case argsep:
 				// Assemble a single-character (plus null-terminator) operation token
 				{
-					newToken = (char*)malloc(2 * sizeof(char)); // Leave room for '\0'
-					newToken[0] = ch;
-					newToken[1] = '\0';
+					tmpToken[0] = ch;
+					tmpToken[1] = '\0';
 				}
 				break;
 			case digit:
@@ -470,65 +477,76 @@ int tokenize(char *str, char *(**tokensRef))
 						//printf("Decimal\n");
 						hasDecimal = true;
 						len++;
-						newToken = (char*)malloc((len + 1) * sizeof(char));
-						newToken[0] = '0';
-						newToken[1] = '.';
+						tmpToken[0] = '0';
+						tmpToken[1] = '.';
 					}
 					else // Numbers that do not start with decimal
 					{
-						newToken = (char*)malloc((len + 1) * sizeof(char)); // Leave room for '\0'
-						newToken[len-1] = ch;
+						tmpToken[len-1] = ch;
 					}
 
 					// Assemble rest of number
 					for(; // Don't change len
 						*ptr // There is a next character and it is not null
+						&& len <= MAXTOKENLENGTH 
 						&& (type(*ptr) == digit // The next character is a digit
 						 	|| ((type(*ptr) == decimal // Or the next character is a decimal
 						 		&& hasDecimal == 0)) // But we have not added a decimal
 						 	|| ((*ptr == 'E' || *ptr == 'e') // Or the next character is an exponent
-						 		&& hasExponent == false)); // But we have not added an exponent yet
+						 		&& hasExponent == false) // But we have not added an exponent yet
+						 	|| ((*ptr == '+' || *ptr == '-') && hasExponent == true)); // Exponent with sign
 						++len)
 					{
 						if(type(*ptr) == decimal)
 							hasDecimal = true;
 						else if(*ptr == 'E' || *ptr == 'e')
 							hasExponent = true;
-						newToken = (char*)realloc(newToken, (len + 1) * sizeof(char)); // Leave room for '\0'
-						newToken[len] = *ptr++;
+						tmpToken[len] = *ptr++;
 					}
 
 					// Append null-terminator
-					newToken[len] = '\0';
+					tmpToken[len] = '\0';
 				}
 				break;
 			case text:
 				// Assemble an n-character (plus null-terminator) text token
 				{
 					int len = 1;
-					newToken = (char*)malloc((len + 1) * sizeof(char)); // Leave room for '\0'
-					newToken[0] = ch;
-					for(len = 1; *ptr && type(*ptr) == text; ++len)
+					tmpToken[0] = ch;
+					for(len = 1; *ptr && type(*ptr) == text && len <= MAXTOKENLENGTH; ++len)
 					{
-						newToken = (char*)realloc(newToken, (len + 1) * sizeof(char)); // Leave room for '\0'
-						newToken[len] = *ptr++;
+						tmpToken[len] = *ptr++;
 					}
-					newToken[len] = '\0';
+					tmpToken[len] = '\0';
 				}
+				break;
+			default:
 				break;
 		}
 		// Add to list of tokens
-		if(newToken != NULL)
+		if(tmpToken[0] != '\0')
 		{
 			numTokens++;
 			/*if(tokens == NULL) // First allocation
 				tokens = (char**)malloc(numTokens * sizeof(char*));
 			else*/
-				tokens = (char**)realloc(tokens, numTokens * sizeof(char*));
+			newToken = malloc((strlen(tmpToken)+1) * sizeof(char));
+			strcpy(newToken, tmpToken);
+			newToken[strlen(tmpToken)] = '\0';
+			tmp = (char**)realloc(tokens, numTokens * sizeof(char*));
+			if (tmp == NULL)
+			{
+				*tokensRef = NULL;
+				free(tmpToken);
+				return 0;
+			}
+			tokens = tmp;
+			tmp = NULL;
 			tokens[numTokens - 1] = newToken;
 		}
 	}
 	*tokensRef = tokens; // Send back out
+	free(tmpToken);
 	return numTokens;
 }
 
@@ -543,6 +561,8 @@ bool leftAssoc(token op)
 			break;
 		case expop:
 			ret = false;
+			break;
+		default:
 			break;
 	}
 	return ret;
@@ -583,6 +603,8 @@ void evalStackPush(Stack *s, token val)
 				operand = (token)stackPop(s);
 				res = doFunc(operand, val);
 				stackPush(s, res);
+				calcTokens[nrCalcTokens] = res;
+				nrCalcTokens++;
 			}
 			break;
 		case expop:
@@ -601,6 +623,8 @@ void evalStackPush(Stack *s, token val)
 
 					// Push result
 					stackPush(s, res);
+					calcTokens[nrCalcTokens] = res;
+					nrCalcTokens++;
 				}
 				else
 				{
@@ -613,6 +637,8 @@ void evalStackPush(Stack *s, token val)
 				stackPush(s, val);
 			}
 			break;
+		default:
+			break;
 	}
 }
 
@@ -621,7 +647,7 @@ bool postfix(token *tokens, int numTokens, Stack *output)
 	Stack operators;
 	int i;
 	bool err = false;
-	stackInit(&operators);
+	stackInit(&operators, 2*numTokens);
 	for(i = 0; i < numTokens; i++)
 	{
 		// From Wikipedia/Shunting-yard_algorithm:
@@ -722,6 +748,8 @@ bool postfix(token *tokens, int numTokens, Stack *output)
 					stackPop(&operators); // Discard lparen
 				}
 				break;
+			default:
+				break;
 		}
 	}
 	/*
@@ -740,7 +768,7 @@ bool postfix(token *tokens, int numTokens, Stack *output)
 		//printf("Moving operator from operator stack to output stack\n");
 		evalStackPush(output, stackPop(&operators));
 	}
-	//stackFree(&operators);
+	stackFree(&operators);
 	return err;
 }
 
@@ -939,6 +967,12 @@ int main(int argc, char *argv[])
 		else
 		{
 			numTokens = tokenize(str, &tokens);
+			calcTokens = (token*)malloc(2 * numTokens * sizeof(token));
+			if (calcTokens == NULL)
+			{
+				return EXIT_FAILURE;
+			}
+			memset(calcTokens, 0, 2 * numTokens * sizeof(token));
 			free(str);
 			str = NULL;
 
@@ -955,7 +989,7 @@ int main(int argc, char *argv[])
 			}
 
 			// Convert to postfix
-			stackInit(&expr);
+			stackInit(&expr, 2*numTokens);
 			if(prefs.display.postfix)
 				printf("\tPostfix stack:\n");
 			postfix(tokens, numTokens, &expr);
@@ -984,6 +1018,14 @@ int main(int argc, char *argv[])
 			free(tokens);
 			tokens = NULL;
 			numTokens = 0;
+			for (i = 0; i < nrCalcTokens; i++)
+			{
+				if (calcTokens[i] != NULL)
+					free(calcTokens[i]);
+			}
+			free(calcTokens);
+			calcTokens = NULL;
+			nrCalcTokens = 0;
 			stackFree(&expr);
 		}
 
@@ -992,6 +1034,7 @@ int main(int argc, char *argv[])
 
 	free(str);
 	str = NULL;
+	
 
 	return EXIT_SUCCESS;
 }

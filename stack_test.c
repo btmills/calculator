@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include "stack.h"
 
+#define STACKSIZE 100
+
 int main()
 {
 	Stack strs;
@@ -10,8 +12,8 @@ int main()
 	int val = 0;
 	int i;
 
-	stackInit(&strs);
-	stackInit(&ints);
+	stackInit(&strs, STACKSIZE);
+	stackInit(&ints, STACKSIZE);
 
 	// Test strings
 	printf("Test strings:\n");
@@ -80,4 +82,5 @@ int main()
 	}
 
 	stackFree(&ints);
+	return 0;
 }
