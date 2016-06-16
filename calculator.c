@@ -12,6 +12,9 @@
 #define PI 3.141592653589793
 
 #define MAXTOKENLENGTH 512
+#define MAXPRECISION 20
+#define DEFAULTPRECISION 5
+
 typedef enum
 {
 	addop,
@@ -41,6 +44,8 @@ struct Preferences
 	{
 		bool degrees;
 	} mode;
+	int precision;
+	int maxtokenlength;
 } prefs;
 
 typedef enum
@@ -51,8 +56,6 @@ typedef enum
 } Error;
 
 typedef char* token;
-token* calcTokens = NULL;
-int nrCalcTokens = 0;
 
 typedef double number;
 
@@ -92,8 +95,20 @@ number buildNumber(token str)
 
 token num2Str(number num)
 {
-	token str = (token)malloc(MAXTOKENLENGTH*sizeof(char));
-	snprintf(str, MAXTOKENLENGTH-1, "%.20f", num);
+	int len = 0;
+	int precision = MAXPRECISION;
+	if (prefs.precision >= 0 && prefs.precision < precision)
+		precision = prefs.precision;
+	token str = (token)malloc(prefs.maxtokenlength*sizeof(char));
+	len = snprintf(str, prefs.maxtokenlength-1, "%.*f", precision, num);
+	if (prefs.precision == -1)
+	{
+		while (str[len-1] == '0')
+		{
+			len = snprintf(str, prefs.maxtokenlength-1, "%.*f", --precision, num);
+		}
+	}
+
 	return str;
 }
 
@@ -107,10 +122,12 @@ number toDegrees(number radians)
 	return radians * 180.0 / PI;
 }
 
-token doFunc(token input, token function)
+token doFunc(Stack *s, token function)
 {
+	token input = (token)stackPop(s);
 	number num = buildNumber(input);
 	number result = num;
+	number counter = 0;
 
 	if(strcmp(function, "abs") == 0)
 		result = fabs(num);
@@ -125,7 +142,7 @@ token doFunc(token input, token function)
 	else if(strcmp(function, "tan") == 0)
 		result = !prefs.mode.degrees ? tan(num) : tan(toRadians(num));
 	else if(strcmp(function, "arcsin") == 0
-	     || strcmp(function, "asin") == 0)
+		 || strcmp(function, "asin") == 0)
 		result = !prefs.mode.degrees ? asin(num) : toDegrees(asin(num));
 	else if(strcmp(function, "arccos") == 0
 		 || strcmp(function, "acos") == 0)
@@ -141,12 +158,102 @@ token doFunc(token input, token function)
 		result = log(num);
 	else if(strcmp(function, "exp") == 0)
 		result = exp(num);
+	else if(strcmp(function, "min") == 0)
+	{
+		while (stackSize(s) > 0)
+		{
+			input = (token)stackPop(s);
+			num = buildNumber(input);
+			if (num < result)
+				result = num;
+		}
+	}
+	else if(strcmp(function, "max") == 0)
+	{
+		while (stackSize(s) > 0)
+		{
+			input = (token)stackPop(s);
+			num = buildNumber(input);
+			if (num > result)
+				result = num;
+		}
+	}
+	else if(strcmp(function, "sum") == 0)
+	{
+		while (stackSize(s) > 0)
+		{
+			input = (token)stackPop(s);
+			num = buildNumber(input);
+			result += num;
+		}
+	}
+	else if(strcmp(function, "avg") == 0)
+	{
+		// Result already initialized with first number
+		counter = 1;
+		while (stackSize(s) > 0)
+		{
+			input = (token)stackPop(s);
+			num = buildNumber(input);
+			result += num;
+			counter++;
+		}
+		result /= counter;
+	}
+	else if(strcmp(function, "median") == 0)
+	{
+		// needed for sorting
+		Stack tmp, safe;
+		// Result already initialized with first number
+		counter = 1;
+		stackInit(&tmp, (stackSize(s) > 0 ? stackSize(s) : 1));
+		stackInit(&safe, (stackSize(s) > 0 ? stackSize(s) : 1));
+		// add first value to the later sorted stack
+		stackPush(&tmp, input);
+		while (stackSize(s) > 0)
+		{
+			input = (token)stackPop(s);
+			num = buildNumber(input);
+			// save all numbers larger as the stack value
+			while (stackSize(&tmp) > 0 && buildNumber(stackTop(&tmp)) < num)
+			{
+				stackPush(&safe, stackPop(&tmp));
+			}
+			// push value on the sorted stack
+			stackPush(&tmp, input);
+			// push all saved numbers back on the sorted stack
+			while (stackSize(&safe) > 0)
+			{
+				stackPush(&tmp, stackPop(&safe));
+			}
+			counter++;
+		}
+		stackFree(&safe);
+		// calculate the median index
+		counter = (number)(((int)counter+1)/2);
+		// pop all numbers until median index
+		while (counter > 1)
+		{
+			stackPop(&tmp);
+			counter--;
+		}
+		result = buildNumber(stackPop(&tmp));
+		// pop the remaining sorted stack
+		while (stackSize(&tmp) > 0)
+		{
+			stackPop(&tmp);
+		}
+		stackFree(&tmp);
+	}
 
-	return num2Str(result);
+	stackPush(s, num2Str(result));
+	return 0;
 }
 
-token doOp(token loperand, token op, token roperand)
+int doOp(Stack *s, token op)
 {
+	token roperand = (token)stackPop(s);
+	token loperand = (token)stackPop(s);
 	number lside = buildNumber(loperand);
 	number rside = buildNumber(roperand);
 	number ret;
@@ -165,7 +272,10 @@ token doOp(token loperand, token op, token roperand)
 		case '/':
 			{
 				if(rside == 0)
+				{
 					raise(divZero);
+					return -1;
+				}
 				else
 					ret = lside / rside;
 			}
@@ -173,7 +283,10 @@ token doOp(token loperand, token op, token roperand)
 		case '%':
 			{
 				if(rside == 0)
+				{
 					raise(divZero);
+					return -1;
+				}
 				else
 				{
 					ret = (int)(lside / rside);
@@ -192,7 +305,8 @@ token doOp(token loperand, token op, token roperand)
 			}
 			break;
 	}
-	return num2Str(ret);
+	stackPush(s, num2Str(ret));
+	return 0;
 }
 
 /*
@@ -202,27 +316,27 @@ token doOp(token loperand, token op, token roperand)
  */
 char* ufgets(FILE* stream)
 {
-    unsigned int maxlen = 128, size = 128;
-    char* buffer = (char*)malloc(maxlen);
+	unsigned int maxlen = 128, size = 128;
+	char* buffer = (char*)malloc(maxlen);
 
-    if(buffer != NULL) /* NULL if malloc() fails */
-    {
-        char ch = EOF;
-        int pos = 0;
+	if(buffer != NULL) /* NULL if malloc() fails */
+	{
+		char ch = EOF;
+		int pos = 0;
 
-        /* Read input one character at a time, resizing the buffer as necessary */
-        while((ch = getchar()) != EOF && ch != '\n')
-        {
-            buffer[pos++] = ch;
-            if(pos == size) /* Next character to be inserted needs more memory */
-            {
-                size = pos + maxlen;
-                buffer = (char*)realloc(buffer, size);
-            }
-        }
-        buffer[pos] = '\0'; /* Null-terminate the completed string */
-    }
-    return buffer;
+		/* Read input one character at a time, resizing the buffer as necessary */
+		while((ch = getchar()) != EOF && ch != '\n')
+		{
+			buffer[pos++] = ch;
+			if(pos == size) /* Next character to be inserted needs more memory */
+			{
+				size = pos + maxlen;
+				buffer = (char*)realloc(buffer, size);
+			}
+		}
+		buffer[pos] = '\0'; /* Null-terminate the completed string */
+	}
+	return buffer;
 }
 
 Symbol type(char ch)
@@ -347,11 +461,18 @@ bool isFunction(token tk)
 		|| strcmp(tk, "sqrt") == 0
 		|| strcmp(tk, "cbrt") == 0
 		|| strcmp(tk, "log") == 0
+		|| strcmp(tk, "min") == 0
+		|| strcmp(tk, "max") == 0
+		|| strcmp(tk, "sum") == 0
+		|| strcmp(tk, "avg") == 0
+		|| strcmp(tk, "median") == 0
 		|| strcmp(tk, "exp") == 0);
 }
 
 Symbol tokenType(token tk)
 {
+	if (!tk)
+		return invalid;
 	Symbol ret = type(*tk);
 	switch(ret)
 	{
@@ -378,12 +499,13 @@ Symbol tokenType(token tk)
 
 int tokenize(char *str, char *(**tokensRef))
 {
+	int i = 0;
 	char** tokens = NULL;
 	char** tmp = NULL;
 	char* ptr = str;
 	char ch = '\0';
 	int numTokens = 0;
-	char* tmpToken = malloc((MAXTOKENLENGTH+1) * sizeof(char));
+	char* tmpToken = malloc((prefs.maxtokenlength+1) * sizeof(char));
 	if (!tmpToken)
 	{
 		fprintf(stderr, "Malloc of temporary buffer failed\n");
@@ -395,7 +517,7 @@ int tokenize(char *str, char *(**tokensRef))
 			break;
 
 		token newToken = NULL;
-		memset(tmpToken, '\0', MAXTOKENLENGTH+1);
+		tmpToken[0] = '\0';
 		switch(type(ch))
 		{
 			case addop:
@@ -430,7 +552,7 @@ int tokenize(char *str, char *(**tokensRef))
 							// Assemble rest of number
 							for(; // Don't change len
 								*ptr // There is a next character and it is not null
-								&& len <= MAXTOKENLENGTH 
+								&& len <= prefs.maxtokenlength
 								&& (type(*ptr) == digit // The next character is a digit
 								 	|| ((type(*ptr) == decimal // Or the next character is a decimal
 								 		&& hasDecimal == 0)) // But we have not added a decimal
@@ -488,7 +610,7 @@ int tokenize(char *str, char *(**tokensRef))
 					// Assemble rest of number
 					for(; // Don't change len
 						*ptr // There is a next character and it is not null
-						&& len <= MAXTOKENLENGTH 
+						&& len <= prefs.maxtokenlength
 						&& (type(*ptr) == digit // The next character is a digit
 						 	|| ((type(*ptr) == decimal // Or the next character is a decimal
 						 		&& hasDecimal == 0)) // But we have not added a decimal
@@ -513,7 +635,7 @@ int tokenize(char *str, char *(**tokensRef))
 				{
 					int len = 1;
 					tmpToken[0] = ch;
-					for(len = 1; *ptr && type(*ptr) == text && len <= MAXTOKENLENGTH; ++len)
+					for(len = 1; *ptr && type(*ptr) == text && len <= prefs.maxtokenlength; ++len)
 					{
 						tmpToken[len] = *ptr++;
 					}
@@ -536,6 +658,16 @@ int tokenize(char *str, char *(**tokensRef))
 			tmp = (char**)realloc(tokens, numTokens * sizeof(char*));
 			if (tmp == NULL)
 			{
+				free(newToken);
+				if (tokens)
+				{
+					for(i=0;i<numTokens-1;i++)
+					{
+						if (tokens[i])
+							free(tokens[i]);
+					}
+					free(tokens);
+				}
 				*tokensRef = NULL;
 				free(tmpToken);
 				return 0;
@@ -557,8 +689,10 @@ bool leftAssoc(token op)
 	{
 		case addop:
 		case multop:
+		
 			ret = true;
 			break;
+		case function:
 		case expop:
 			ret = false;
 			break;
@@ -570,9 +704,11 @@ bool leftAssoc(token op)
 
 int precedence(token op1, token op2)
 {
-	int ret;
+	int ret = 0;
 
-	if(tokenType(op1) == tokenType(op2)) // Equal precedence
+	if (op2 == NULL)
+		ret = 1;
+	else if(tokenType(op1) == tokenType(op2)) // Equal precedence
 		ret = 0;
 	else if(tokenType(op1) == addop
 			&& (tokenType(op2) == multop || tokenType(op2) == expop)) // op1 has lower precedence
@@ -586,7 +722,12 @@ int precedence(token op1, token op2)
 	else if(tokenType(op1) == expop
 			&& tokenType(op2) == multop) // op1 has higher precedence
 		ret = 1;
-
+	else if (tokenType(op1) == function 
+			&& (tokenType(op2) == addop || tokenType(op2) == multop || tokenType(op2) == expop || tokenType(op2) == lparen))
+		ret = 1;
+	else if ((tokenType(op1) == addop || tokenType(op1) == multop || tokenType(op1) == expop)
+			&& tokenType(op2) == function)
+		ret = -1;
 	return ret;
 }
 
@@ -599,12 +740,11 @@ void evalStackPush(Stack *s, token val)
 	{
 		case function:
 			{
-				token operand, res;
-				operand = (token)stackPop(s);
-				res = doFunc(operand, val);
-				stackPush(s, res);
-				calcTokens[nrCalcTokens] = res;
-				nrCalcTokens++;
+				//token res;
+				//operand = (token)stackPop(s);
+				if (doFunc(s, val) < 0)
+					return;
+				//stackPush(s, res);
 			}
 			break;
 		case expop:
@@ -614,17 +754,13 @@ void evalStackPush(Stack *s, token val)
 				if(stackSize(s) >= 2)
 				{
 					// Pop two operands
-					token l, r, res;
-					r = (token)stackPop(s);
-					l = (token)stackPop(s);
 
 					// Evaluate
-					res = doOp(l, val, r);
+					if (doOp(s, val) < 0)
+						return;
 
 					// Push result
-					stackPush(s, res);
-					calcTokens[nrCalcTokens] = res;
-					nrCalcTokens++;
+					//stackPush(s, res);
 				}
 				else
 				{
@@ -644,10 +780,11 @@ void evalStackPush(Stack *s, token val)
 
 bool postfix(token *tokens, int numTokens, Stack *output)
 {
-	Stack operators;
+	Stack operators, intermediate;
 	int i;
 	bool err = false;
-	stackInit(&operators, 2*numTokens);
+	stackInit(&operators, numTokens);
+	stackInit(&intermediate, numTokens);
 	for(i = 0; i < numTokens; i++)
 	{
 		// From Wikipedia/Shunting-yard_algorithm:
@@ -656,13 +793,23 @@ bool postfix(token *tokens, int numTokens, Stack *output)
 			case value:
 				{
 					// If the token is a number, then add it to the output queue.
-					//printf("Adding number to output stack\n");
+					//printf("Adding number %s to output stack\n", tokens[i]);
 					evalStackPush(output, tokens[i]);
 				}
 				break;
 			case function:
 				{
+					while(stackSize(&operators) > 0
+						&& (tokenType(tokens[i]) != lparen)
+						&& ((precedence(tokens[i], (char*)stackTop(&operators)) <= 0)))
+					{
+						//printf("Moving operator %s from operator stack to output stack\n", (char*)stackTop(&operators));
+						evalStackPush(output, stackPop(&operators));
+						stackPush(&intermediate, stackTop(output));
+					}
+
 					// If the token is a function token, then push it onto the stack.
+					//printf("Adding operator %s to operator stack\n", tokens[i]);
 					stackPush(&operators, tokens[i]);
 				}
 				break;
@@ -670,10 +817,10 @@ bool postfix(token *tokens, int numTokens, Stack *output)
 				{
 					/*
 					 * If the token is a function argument separator (e.g., a comma):
-					 *     Until the token at the top of the stack is a left
-					 *     paren, pop operators off the stack onto the output
-					 *     queue. If no left paren encountered, either separator
-					 *     was misplaced or parens mismatched.
+					 *	 Until the token at the top of the stack is a left
+					 *	 paren, pop operators off the stack onto the output
+					 *	 queue. If no left paren encountered, either separator
+					 *	 was misplaced or parens mismatched.
 					 */
 					while(stackSize(&operators) > 0
 						&& tokenType((token)stackTop(&operators)) != lparen
@@ -681,15 +828,16 @@ bool postfix(token *tokens, int numTokens, Stack *output)
 					{
 						//printf("Moving operator from operator stack to output stack\n");
 						evalStackPush(output, stackPop(&operators));
+						stackPush(&intermediate, stackTop(output));
 					}
-					if(stackSize(&operators) > 0
+					/*if(stackSize(&operators) > 0
 						&& tokenType((token)stackTop(&operators)) != lparen)
 					{
 						err = true;
 						raise(parenMismatch);
 					}
-					//printf("Removing left paren from operator stack\n");
-					stackPop(&operators); // Discard lparen
+					printf("Removing left paren from operator stack\n");
+					stackPop(&operators); // Discard lparen*/
 				}
 				break;
 			case addop:
@@ -698,21 +846,22 @@ bool postfix(token *tokens, int numTokens, Stack *output)
 				{
 					/*
 					 * If the token is an operator, op1, then:
-					 *     while there is an operator token, op2, at the top of the stack, and
-					 *             either op1 is left-associative and its precedence is less than or equal to that of op2,
-					 *             or op1 is right-associative and its precedence is less than that of op2,
-					 *         pop op2 off the stack, onto the output queue
-					 *     push op1 onto the stack
+					 *	 while there is an operator token, op2, at the top of the stack, and
+					 *			 either op1 is left-associative and its precedence is less than or equal to that of op2,
+					 *			 or op1 is right-associative and its precedence is less than that of op2,
+					 *		 pop op2 off the stack, onto the output queue
+					 *	 push op1 onto the stack
 					 */
 					while(stackSize(&operators) > 0
 						&& (tokenType((char*)stackTop(&operators)) == addop || tokenType((char*)stackTop(&operators)) == multop || tokenType((char*)stackTop(&operators)) == expop)
 						&& ((leftAssoc(tokens[i]) && precedence(tokens[i], (char*)stackTop(&operators)) <= 0)
 							|| (!leftAssoc(tokens[i]) && precedence(tokens[i], (char*)stackTop(&operators)) < 0)))
 					{
-						//printf("Moving operator from operator stack to output stack\n");
+						//printf("Moving operator %s from operator stack to output stack\n", (char*)stackTop(&operators));
 						evalStackPush(output, stackPop(&operators));
+						stackPush(&intermediate, stackTop(output));
 					}
-					//printf("Adding operator to operator stack\n");
+					//printf("Adding operator %s to operator stack\n", tokens[i]);
 					stackPush(&operators, tokens[i]);
 				}
 				break;
@@ -727,16 +876,17 @@ bool postfix(token *tokens, int numTokens, Stack *output)
 				{
 					/*
 					 * If the token is a right paren:
-					 *     Until the token at the top of the stack is a left paren, pop operators off the stack onto the output queue
-					 *     Pop the left paren from the stack, but not onto the output queue
-					 *     If the stack runs out without finding a left paren, then there are mismatched parens
+					 *	 Until the token at the top of the stack is a left paren, pop operators off the stack onto the output queue
+					 *	 Pop the left paren from the stack, but not onto the output queue
+					 *	 If the stack runs out without finding a left paren, then there are mismatched parens
 					 */
 					while(stackSize(&operators) > 0
 						&& tokenType((token)stackTop(&operators)) != lparen
 						&& stackSize(&operators) > 1)
 					{
-						//printf("Moving operator from operator stack to output stack\n");
+						//printf("Moving operator %s from operator stack to output stack\n", (char*)stackTop(&operators));
 						evalStackPush(output, stackPop(&operators));
+						stackPush(&intermediate, stackTop(output));
 					}
 					if(stackSize(&operators) > 0
 						&& tokenType((token)stackTop(&operators)) != lparen)
@@ -746,6 +896,12 @@ bool postfix(token *tokens, int numTokens, Stack *output)
 					}
 					//printf("Removing left paren from operator stack\n");
 					stackPop(&operators); // Discard lparen
+					while (stackSize(&operators) > 0 && tokenType((token)stackTop(&operators)) == function)
+					{
+						//printf("Removing function from operator stack to output stack\n");
+						evalStackPush(output, stackPop(&operators));
+						stackPush(&intermediate, stackTop(output));
+					}
 				}
 				break;
 			default:
@@ -754,9 +910,9 @@ bool postfix(token *tokens, int numTokens, Stack *output)
 	}
 	/*
 	 * When there are no more tokens to read:
-	 *     While there are still operator tokens on the stack:
-	 *         If the operator token on the top of the stack is a paren, then there are mismatched parens
-	 *         Pop the operator onto the output queue
+	 *	 While there are still operator tokens on the stack:
+	 *		 If the operator token on the top of the stack is a paren, then there are mismatched parens
+	 *		 Pop the operator onto the output queue
 	 */
 	while(stackSize(&operators) > 0)
 	{
@@ -767,7 +923,16 @@ bool postfix(token *tokens, int numTokens, Stack *output)
 		}
 		//printf("Moving operator from operator stack to output stack\n");
 		evalStackPush(output, stackPop(&operators));
+		stackPush(&intermediate, stackTop(output));
 	}
+	// pop result from intermediate stack
+	stackPop(&intermediate);
+	// free remaining intermediate results
+	while (stackSize(&intermediate) > 0)
+	{
+		free(stackPop(&intermediate));
+	}
+	stackFree(&intermediate);
 	stackFree(&operators);
 	return err;
 }
@@ -807,8 +972,10 @@ bool strBeginsWith(char *haystack, char *needle)
 int strSplit(char *str, const char split, char *(**partsRef))
 {
 	char **parts = NULL;
+	char **tmpparts = NULL;
 	char *ptr = str;
 	char *part = NULL;
+	char *tmppart = NULL;
 	int numParts = 0;
 	char ch;
 	int len = 0;
@@ -819,7 +986,24 @@ int strSplit(char *str, const char split, char *(**partsRef))
 		if((ch == '\0' || ch == split) && part != NULL) // End of part
 		{
 			// Add null terminator
-			part = (char*)realloc(part, (len+1) * sizeof(char));
+			tmppart = (char*)realloc(part, (len+1) * sizeof(char));
+			// if realloc fails, free current part and all previous parts
+			if (tmppart == NULL)
+			{
+				free(part);
+				part = NULL;
+				for(len=0;len<numParts;len++)
+				{
+					if (parts[len])
+						free(parts[len]);
+				}
+				if (parts)
+					free(parts);
+				parts = NULL;
+				numParts = 0;
+				break;
+			}
+			part = tmppart;
 			part[len] = '\0';
 
 			// Add to parts
@@ -827,7 +1011,26 @@ int strSplit(char *str, const char split, char *(**partsRef))
 			if(parts == NULL)
 				parts = (char**)malloc(sizeof(char**));
 			else
-				parts = (char**)realloc(parts, numParts * sizeof(char*));
+			{
+				tmpparts = (char**)realloc(parts, numParts * sizeof(char*));
+				// if relloc fails, free current and previous parts
+				if (tmpparts == NULL)
+				{
+					free(part);
+					part = NULL;
+					for(len=0;len<numParts-1;len++)
+					{
+						if (parts[len])
+							free(parts[len]);
+					}
+					if (parts)
+						free(parts);
+					parts = NULL;
+					numParts = 0;
+					break;
+				}
+				parts = tmpparts;
+			}
 			parts[numParts - 1] = part;
 			part = NULL;
 			len = 0;
@@ -836,9 +1039,29 @@ int strSplit(char *str, const char split, char *(**partsRef))
 		{
 			len++;
 			if(part == NULL)
+			{
 				part = (char*)malloc(sizeof(char));
+			}
 			else
-				part = (char*)realloc(part, len * sizeof(char));
+			{
+				tmppart = (char*)realloc(part, len * sizeof(char));
+				// if relloc fails, free current and previous parts
+				if (tmppart == NULL)
+				{
+					free(part);
+					part = NULL;
+					for(len=0;len<numParts;len++)
+					{
+						if (parts[len])
+							free(parts[len]);
+					}
+					free(parts);
+					numParts = 0;
+					parts = NULL;
+					break;
+				}
+				part = tmppart;
+			}
 			part[len - 1] = ch;
 		}
 
@@ -863,6 +1086,7 @@ int strSplit(char *str, const char split, char *(**partsRef))
 
 bool execCommand(char *str)
 {
+	int i = 0;
 	bool recognized = false;
 	char **words = NULL;
 	int len = strSplit(str, ' ', &words);
@@ -885,6 +1109,14 @@ bool execCommand(char *str)
 		{
 			recognized = true;
 			printf("\t%s\n", (prefs.mode.degrees ? "degrees" : "radians"));
+		}
+		else if(len >= 2 && strcmp(words[1], "precision") == 0)
+		{
+			recognized = true;
+			if (prefs.precision > 0)
+				printf("\t%d\n", prefs.precision);
+			else
+				printf("\tauto\n");
 		}
 	}
 	else if(len >= 1 && strcmp(words[0], "set") == 0)
@@ -931,6 +1163,28 @@ bool execCommand(char *str)
 				prefs.mode.degrees = true;
 			}
 		}
+		else if (len >= 2 && strcmp(words[1], "precision") == 0)
+		{
+			if(len >= 3 && strcmp(words[2], "auto") == 0)
+			{
+				recognized = true;
+				prefs.precision = -1;
+			}
+			else if (len >= 3 && type(words[2][0]) == digit)
+			{
+				recognized = true;
+				prefs.precision = atoi(words[2]);
+			}
+		}
+	}
+	if (words)
+	{
+		for (i=0;i<len;i++)
+		{
+			if (words[i])
+				free(words[i]);
+		}
+		free(words);
 	}
 
 	return recognized;
@@ -944,35 +1198,35 @@ int main(int argc, char *argv[])
 	Stack expr;
 	int i;
 	int ch, rflag = 0;
+	prefs.precision = DEFAULTPRECISION;
+	prefs.maxtokenlength = MAXTOKENLENGTH;
 
-	while ((ch = getopt(argc, argv, "r")) != -1) {
+	while ((ch = getopt(argc, argv, "rm:")) != -1) {
 		switch (ch) {
 			case 'r':
 				rflag = 1;
 				break;
+			case 'm':
+				prefs.maxtokenlength = atoi(optarg);
 		}
 	}
 
 	str = ufgets(stdin);
 	while(str != NULL && strcmp(str, "quit") != 0)
 	{
-		if(type(*str) == text && execCommand(str))
+		if(type(*str) == text)
 		{
 			// Do something with command
-			//execCommand(str);
+			if (!execCommand(str))
+				goto no_command;
 
 			free(str);
 			str = NULL;
 		}
 		else
 		{
+no_command:
 			numTokens = tokenize(str, &tokens);
-			calcTokens = (token*)malloc(2 * numTokens * sizeof(token));
-			if (calcTokens == NULL)
-			{
-				return EXIT_FAILURE;
-			}
-			memset(calcTokens, 0, 2 * numTokens * sizeof(token));
 			free(str);
 			str = NULL;
 
@@ -989,7 +1243,7 @@ int main(int argc, char *argv[])
 			}
 
 			// Convert to postfix
-			stackInit(&expr, 2*numTokens);
+			stackInit(&expr, numTokens);
 			if(prefs.display.postfix)
 				printf("\tPostfix stack:\n");
 			postfix(tokens, numTokens, &expr);
@@ -1009,6 +1263,7 @@ int main(int argc, char *argv[])
 				if (!rflag)
 					printf("\t= ");
 				printf("%s\n", (char*)stackTop(&expr));
+				free(stackPop(&expr));
 			}
 
 			for(i = 0; i < numTokens; i++)
@@ -1018,14 +1273,6 @@ int main(int argc, char *argv[])
 			free(tokens);
 			tokens = NULL;
 			numTokens = 0;
-			for (i = 0; i < nrCalcTokens; i++)
-			{
-				if (calcTokens[i] != NULL)
-					free(calcTokens[i]);
-			}
-			free(calcTokens);
-			calcTokens = NULL;
-			nrCalcTokens = 0;
 			stackFree(&expr);
 		}
 
@@ -1034,7 +1281,7 @@ int main(int argc, char *argv[])
 
 	free(str);
 	str = NULL;
-	
+
 
 	return EXIT_SUCCESS;
 }
