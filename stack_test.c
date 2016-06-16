@@ -11,6 +11,7 @@ int main()
 	char* str = NULL;
 	int val = 0;
 	int i;
+	int *iptr;
 
 	stackInit(&strs, STACKSIZE);
 	stackInit(&ints, STACKSIZE);
@@ -58,6 +59,11 @@ int main()
 	for(i = 1; i <= 4; i++)
 	{
 		int *add = (int*)malloc(sizeof(int));
+		if (add == NULL)
+		{
+			printf("Cannot allocate memory, poping stack\n");
+			goto error_pop;
+		}
 		*add = i;
 		printf("Pushing %d\n", *add);
 		stackPush(&ints, add);
@@ -70,9 +76,11 @@ int main()
 		printf("%d\n", *((int*)(ints.content[i])));
 	}
 
-	val = *(int*)stackPop(&ints);
-	printf("stackPop() returned %d\n", val);
+	iptr = (int*)stackPop(&ints);
+	printf("stackPop() returned %d\n", *iptr);
+	free(iptr);
 	printf("Remainder of stack:\n");
+error_pop:
 	while(stackSize(&ints))
 	{
 		int *rem = (int*)stackPop(&ints);
