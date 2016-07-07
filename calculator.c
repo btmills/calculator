@@ -52,7 +52,8 @@ typedef enum
 {
 	divZero,
 	overflow,
-	parenMismatch
+	parenMismatch,
+	inputMissing,
 } Error;
 
 typedef char* token;
@@ -72,6 +73,9 @@ void raise(Error err)
 			break;
 		case parenMismatch:
 			msg = "Mismatched parentheses";
+			break;
+		case inputMissing:
+			msg = "Function input missing";
 			break;
 	}
 	printf("\tError: %s\n", msg);
@@ -124,41 +128,46 @@ number toDegrees(number radians)
 
 token doFunc(Stack *s, token function)
 {
+	if (stackSize(s) == 0)
+	{
+		raise(inputMissing);
+		return "NaN";
+	}
 	token input = (token)stackPop(s);
 	number num = buildNumber(input);
 	number result = num;
 	number counter = 0;
 
-	if(strcmp(function, "abs") == 0)
+	if(strncmp(function, "abs", 3) == 0)
 		result = fabs(num);
-	else if(strcmp(function, "floor") == 0)
+	else if(strncmp(function, "floor", 5) == 0)
 		result = floor(num);
-	else if(strcmp(function, "ceil") == 0)
+	else if(strncmp(function, "ceil", 4) == 0)
 		result = ceil(num);
-	else if(strcmp(function, "sin") == 0)
+	else if(strncmp(function, "sin", 3) == 0)
 		result = !prefs.mode.degrees ? sin(num) : sin(toRadians(num));
-	else if(strcmp(function, "cos") == 0)
+	else if(strncmp(function, "cos", 3) == 0)
 		result = !prefs.mode.degrees ? cos(num) : cos(toRadians(num));
-	else if(strcmp(function, "tan") == 0)
+	else if(strncmp(function, "tan", 3) == 0)
 		result = !prefs.mode.degrees ? tan(num) : tan(toRadians(num));
-	else if(strcmp(function, "arcsin") == 0
-		 || strcmp(function, "asin") == 0)
+	else if(strncmp(function, "arcsin", 6) == 0
+		 || strncmp(function, "asin", 4) == 0)
 		result = !prefs.mode.degrees ? asin(num) : toDegrees(asin(num));
-	else if(strcmp(function, "arccos") == 0
-		 || strcmp(function, "acos") == 0)
+	else if(strncmp(function, "arccos", 6) == 0
+		 || strncmp(function, "acos", 4) == 0)
 		result = !prefs.mode.degrees ? acos(num) : toDegrees(acos(num));
-	else if(strcmp(function, "arctan") == 0
-		 || strcmp(function, "atan") == 0)
+	else if(strncmp(function, "arctan", 6) == 0
+		 || strncmp(function, "atan", 4) == 0)
 		result = !prefs.mode.degrees ? atan(num) : toDegrees(atan(num));
-	else if(strcmp(function, "sqrt") == 0)
+	else if(strncmp(function, "sqrt", 4) == 0)
 		result = sqrt(num);
-	else if(strcmp(function, "cbrt") == 0)
+	else if(strncmp(function, "cbrt", 4) == 0)
 		result = cbrt(num);
-	else if(strcmp(function, "log") == 0)
+	else if(strncmp(function, "log", 3) == 0)
 		result = log(num);
-	else if(strcmp(function, "exp") == 0)
+	else if(strncmp(function, "exp", 3) == 0)
 		result = exp(num);
-	else if(strcmp(function, "min") == 0)
+	else if(strncmp(function, "min", 3) == 0)
 	{
 		while (stackSize(s) > 0)
 		{
@@ -168,7 +177,7 @@ token doFunc(Stack *s, token function)
 				result = num;
 		}
 	}
-	else if(strcmp(function, "max") == 0)
+	else if(strncmp(function, "max", 3) == 0)
 	{
 		while (stackSize(s) > 0)
 		{
@@ -178,7 +187,7 @@ token doFunc(Stack *s, token function)
 				result = num;
 		}
 	}
-	else if(strcmp(function, "sum") == 0)
+	else if(strncmp(function, "sum", 3) == 0)
 	{
 		while (stackSize(s) > 0)
 		{
@@ -187,7 +196,8 @@ token doFunc(Stack *s, token function)
 			result += num;
 		}
 	}
-	else if(strcmp(function, "avg") == 0)
+	else if(strncmp(function, "avg", 3) == 0 ||
+			strncmp(function, "mean", 4) == 0)
 	{
 		// Result already initialized with first number
 		counter = 1;
@@ -200,7 +210,7 @@ token doFunc(Stack *s, token function)
 		}
 		result /= counter;
 	}
-	else if(strcmp(function, "median") == 0)
+	else if(strncmp(function, "median", 6) == 0)
 	{
 		// needed for sorting
 		Stack tmp, safe;
@@ -243,6 +253,32 @@ token doFunc(Stack *s, token function)
 		{
 			stackPop(&tmp);
 		}
+		stackFree(&tmp);
+	}
+	else if(strncmp(function, "var", 3) == 0)
+	{
+	    Stack tmp;
+	    counter = 1;
+	    stackInit(&tmp, (stackSize(s) > 0 ? stackSize(s) : 1));
+	    stackPush(&tmp, input);
+	    number mean = result;
+		while (stackSize(s) > 0)
+		{
+			input = (token)stackPop(s);
+			stackPush(&tmp, input);
+			num = buildNumber(input);
+			mean += num;
+			counter++;
+		}
+		mean /= counter;
+		result = 0;
+		while (stackSize(&tmp) > 0)
+		{
+		    input = (token)stackPop(&tmp);
+		    num = buildNumber(input);
+		    result += (num-mean)*(num-mean);
+		}
+		result /= counter;
 		stackFree(&tmp);
 	}
 
@@ -446,27 +482,29 @@ Symbol type(char ch)
 
 bool isFunction(token tk)
 {
-	return (strcmp(tk, "abs") == 0
-		|| strcmp(tk, "floor") == 0
-		|| strcmp(tk, "ceil") == 0
-		|| strcmp(tk, "sin") == 0
-		|| strcmp(tk, "cos") == 0
-		|| strcmp(tk, "tan") == 0
-		|| strcmp(tk, "arcsin") == 0
-		|| strcmp(tk, "arccos") == 0
-		|| strcmp(tk, "arctan") == 0
-		|| strcmp(tk, "asin") == 0
-		|| strcmp(tk, "acos") == 0
-		|| strcmp(tk, "atan") == 0
-		|| strcmp(tk, "sqrt") == 0
-		|| strcmp(tk, "cbrt") == 0
-		|| strcmp(tk, "log") == 0
-		|| strcmp(tk, "min") == 0
-		|| strcmp(tk, "max") == 0
-		|| strcmp(tk, "sum") == 0
-		|| strcmp(tk, "avg") == 0
-		|| strcmp(tk, "median") == 0
-		|| strcmp(tk, "exp") == 0);
+	return (strncmp(tk, "abs", 3) == 0
+		|| strncmp(tk, "floor", 5) == 0
+		|| strncmp(tk, "ceil", 4) == 0
+		|| strncmp(tk, "sin", 3) == 0
+		|| strncmp(tk, "cos", 3) == 0
+		|| strncmp(tk, "tan", 3) == 0
+		|| strncmp(tk, "arcsin", 6) == 0
+		|| strncmp(tk, "arccos", 6) == 0
+		|| strncmp(tk, "arctan", 6) == 0
+		|| strncmp(tk, "asin", 4) == 0
+		|| strncmp(tk, "acos", 4) == 0
+		|| strncmp(tk, "atan", 4) == 0
+		|| strncmp(tk, "sqrt", 4) == 0
+		|| strncmp(tk, "cbrt", 4) == 0
+		|| strncmp(tk, "log", 3) == 0
+		|| strncmp(tk, "min", 3) == 0
+		|| strncmp(tk, "max", 3) == 0
+		|| strncmp(tk, "sum", 3) == 0
+		|| strncmp(tk, "avg", 3) == 0
+		|| strncmp(tk, "mean", 4) == 0
+		|| strncmp(tk, "median", 6) == 0
+		|| strncmp(tk, "var", 3) == 0
+		|| strncmp(tk, "exp", 3) == 0);
 }
 
 Symbol tokenType(token tk)
@@ -528,7 +566,8 @@ int tokenize(char *str, char *(**tokensRef))
 							|| (tokenType(tokens[numTokens-1]) == addop
 								|| tokenType(tokens[numTokens-1]) == multop
 								|| tokenType(tokens[numTokens-1]) == expop
-								|| tokenType(tokens[numTokens-1]) == lparen)))
+								|| tokenType(tokens[numTokens-1]) == lparen
+								|| tokenType(tokens[numTokens-1]) == argsep)))
 					{
 						// Assemble an n-character (plus null-terminator) number token
 						{
@@ -1263,12 +1302,18 @@ no_command:
 				if (!rflag)
 					printf("\t= ");
 				printf("%s\n", (char*)stackTop(&expr));
+				for (i=0; i< numTokens; i++)
+				{
+					if (tokens[i] == stackTop(&expr))
+						tokens[i] = NULL;
+				}
 				free(stackPop(&expr));
 			}
 
 			for(i = 0; i < numTokens; i++)
 			{
-				free(tokens[i]);
+				if (tokens[i] != NULL)
+					free(tokens[i]);
 			}
 			free(tokens);
 			tokens = NULL;
