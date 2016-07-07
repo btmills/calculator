@@ -30,7 +30,9 @@ This is a command-line calculator, written in C, supporting the standard mathema
 *	`max(...)` Maximum
 *	`sum(...)` Summation
 *	`mean(...)` Mean
+*	`avg(...)` Mean
 *	`median(...)` Median
+*	`var(...)` Variance
 
 ## Why
 
