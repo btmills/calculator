@@ -14,6 +14,7 @@
 #define MAXTOKENLENGTH 512
 #define MAXPRECISION 20
 #define DEFAULTPRECISION 5
+#define FUNCTIONSEPARATOR "|"
 
 typedef enum
 {
@@ -169,7 +170,7 @@ token doFunc(Stack *s, token function)
 		result = exp(num);
 	else if(strncmp(function, "min", 3) == 0)
 	{
-		while (stackSize(s) > 0)
+		while (stackSize(s) > 0 && strcmp(stackTop(s), FUNCTIONSEPARATOR) != 0)
 		{
 			input = (token)stackPop(s);
 			num = buildNumber(input);
@@ -179,7 +180,7 @@ token doFunc(Stack *s, token function)
 	}
 	else if(strncmp(function, "max", 3) == 0)
 	{
-		while (stackSize(s) > 0)
+		while (stackSize(s) > 0 && strcmp(stackTop(s), FUNCTIONSEPARATOR) != 0)
 		{
 			input = (token)stackPop(s);
 			num = buildNumber(input);
@@ -189,7 +190,7 @@ token doFunc(Stack *s, token function)
 	}
 	else if(strncmp(function, "sum", 3) == 0)
 	{
-		while (stackSize(s) > 0)
+		while (stackSize(s) > 0  && strcmp(stackTop(s), FUNCTIONSEPARATOR) != 0)
 		{
 			input = (token)stackPop(s);
 			num = buildNumber(input);
@@ -201,7 +202,7 @@ token doFunc(Stack *s, token function)
 	{
 		// Result already initialized with first number
 		counter = 1;
-		while (stackSize(s) > 0)
+		while (stackSize(s) > 0  && strcmp(stackTop(s), FUNCTIONSEPARATOR) != 0)
 		{
 			input = (token)stackPop(s);
 			num = buildNumber(input);
@@ -220,7 +221,7 @@ token doFunc(Stack *s, token function)
 		stackInit(&safe, (stackSize(s) > 0 ? stackSize(s) : 1));
 		// add first value to the later sorted stack
 		stackPush(&tmp, input);
-		while (stackSize(s) > 0)
+		while (stackSize(s) > 0  && strcmp(stackTop(s), FUNCTIONSEPARATOR) != 0)
 		{
 			input = (token)stackPop(s);
 			num = buildNumber(input);
@@ -257,31 +258,38 @@ token doFunc(Stack *s, token function)
 	}
 	else if(strncmp(function, "var", 3) == 0)
 	{
-	    Stack tmp;
-	    counter = 1;
-	    stackInit(&tmp, (stackSize(s) > 0 ? stackSize(s) : 1));
-	    stackPush(&tmp, input);
-	    number mean = result;
-		while (stackSize(s) > 0)
+		Stack tmp;
+		counter = 1;
+		// second stack to store values during calculation of mean
+		stackInit(&tmp, (stackSize(s) > 0 ? stackSize(s) : 1));
+		// push first value to temporary stack
+		stackPush(&tmp, input);
+		number mean = result;
+		while (stackSize(s) > 0  && strcmp(stackTop(s), FUNCTIONSEPARATOR) != 0)
 		{
 			input = (token)stackPop(s);
+			// push value to temporary stack
 			stackPush(&tmp, input);
 			num = buildNumber(input);
 			mean += num;
 			counter++;
 		}
+		// calculate mean
 		mean /= counter;
 		result = 0;
+		// calculate sum of squared differences
 		while (stackSize(&tmp) > 0)
 		{
-		    input = (token)stackPop(&tmp);
-		    num = buildNumber(input);
-		    result += (num-mean)*(num-mean);
+			input = (token)stackPop(&tmp);
+			num = buildNumber(input)-mean;
+			result += pow(num,2);
 		}
+		// determine variance
 		result /= counter;
 		stackFree(&tmp);
 	}
-
+	if (strcmp(stackTop(s), FUNCTIONSEPARATOR) == 0)
+		stackPop(s);
 	stackPush(s, num2Str(result));
 	return 0;
 }
@@ -723,7 +731,7 @@ int tokenize(char *str, char *(**tokensRef))
 
 bool leftAssoc(token op)
 {
-	bool ret;
+	bool ret = false;
 	switch(tokenType(op))
 	{
 		case addop:
@@ -908,6 +916,8 @@ bool postfix(token *tokens, int numTokens, Stack *output)
 				{
 					// If the token is a left paren, then push it onto the stack
 					//printf("Adding left paren to operator stack\n");
+					if (tokenType(stackTop(&operators)) == function)
+						stackPush(output, FUNCTIONSEPARATOR);
 					stackPush(&operators, tokens[i]);
 				}
 				break;
