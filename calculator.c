@@ -134,6 +134,12 @@ token doFunc(Stack *s, token function)
 		raise(inputMissing);
 		return "NaN";
 	}
+	else if (stackSize(s) == 1 && strcmp(stackTop(s), FUNCTIONSEPARATOR) == 0)
+	{
+		stackPop(s);
+		raise(inputMissing);
+		return "NaN";
+	}
 	token input = (token)stackPop(s);
 	number num = buildNumber(input);
 	number result = num;
@@ -693,29 +699,36 @@ int tokenize(char *str, char *(**tokensRef))
 				break;
 		}
 		// Add to list of tokens
-		if(tmpToken[0] != '\0')
+		if(tmpToken[0] != '\0' && strlen(tmpToken) > 0)
 		{
 			numTokens++;
 			/*if(tokens == NULL) // First allocation
 				tokens = (char**)malloc(numTokens * sizeof(char*));
 			else*/
+			
 			newToken = malloc((strlen(tmpToken)+1) * sizeof(char));
+			if (!newToken)
+			{
+				numTokens--;
+				break;
+			}
 			strcpy(newToken, tmpToken);
 			newToken[strlen(tmpToken)] = '\0';
 			tmp = (char**)realloc(tokens, numTokens * sizeof(char*));
 			if (tmp == NULL)
 			{
 				free(newToken);
-				if (tokens)
+				if (tokens != NULL)
 				{
 					for(i=0;i<numTokens-1;i++)
 					{
-						if (tokens[i])
+						if (tokens[i] != NULL)
 							free(tokens[i]);
 					}
 					free(tokens);
 				}
 				*tokensRef = NULL;
+				free(newToken);
 				free(tmpToken);
 				return 0;
 			}
@@ -726,6 +739,7 @@ int tokenize(char *str, char *(**tokensRef))
 	}
 	*tokensRef = tokens; // Send back out
 	free(tmpToken);
+	tmpToken = NULL;
 	return numTokens;
 }
 
@@ -979,7 +993,16 @@ bool postfix(token *tokens, int numTokens, Stack *output)
 	// free remaining intermediate results
 	while (stackSize(&intermediate) > 0)
 	{
-		free(stackPop(&intermediate));
+		stackPop(&intermediate);
+	}
+	if (err == true)
+	{
+		while (stackSize(&operators) > 0)
+		{
+			token s = stackPop(&operators);
+			//printf("Freeing %s from operators stack\n", s);
+			free(s);
+		}
 	}
 	stackFree(&intermediate);
 	stackFree(&operators);
@@ -1259,10 +1282,11 @@ int main(int argc, char *argv[])
 				prefs.maxtokenlength = atoi(optarg);
 		}
 	}
-
 	str = ufgets(stdin);
 	while(str != NULL && strcmp(str, "quit") != 0)
 	{
+		if (strlen(str) == 0)
+			goto get_new_string;
 		if(type(*str) == text)
 		{
 			// Do something with command
@@ -1330,7 +1354,7 @@ no_command:
 			numTokens = 0;
 			stackFree(&expr);
 		}
-
+get_new_string:
 		str = ufgets(stdin);
 	}
 
