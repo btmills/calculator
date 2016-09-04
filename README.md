@@ -26,6 +26,13 @@ This is a command-line calculator, written in C, supporting the standard mathema
 *	`cbrt(...)` Cube root
 *	`log(...)` Logarithm
 *	`exp(...)` Exponentiation (e^x)
+*	`min(...)` Minimum
+*	`max(...)` Maximum
+*	`sum(...)` Summation
+*	`mean(...)` Mean
+*	`avg(...)` Mean
+*	`median(...)` Median
+*	`var(...)` Variance
 
 ## Why
 
@@ -51,10 +58,13 @@ Try typing `set display tokens on` and entering an expression. The calculator wi
 	* `display` Settings to do with the display of the evaluation process
 		* `postfix (off/on)` Display the postfix stack before evaluation
 		* `tokens (off/on)` Display the result of tokenization
-	* `mode (radians/degrees)` Evaluation mode of trigonometric functions 
+	* `mode (radians/degrees)` Evaluation mode of trigonometric functions
+	* `precision (X/auto)` Set precision to `X` decimal places or `auto` to reduce decimal places as far as possible without loosing precision. Default is 5 decimal places
 
 ## Building and Running
 
 Build with `make`. Clean with `make clean`. Run with `./calc`. Type any mathematical expression, for example, `3*(2^4) - 3*floor(2 * sin(3.14 / 2))` and press the Enter key. Type `quit` to close.
 
 There is a `-r` command line option which removes the `=` from the output, outputting only the result value. This is designed for use in situations such as shell scripting, where only the raw, unprocessed value is desired.
+
+There is a `-m` command line option which sets the maximal length of a token. Default is 512 characters.
