@@ -993,7 +993,8 @@ bool postfix(token *tokens, int numTokens, Stack *output)
 	// free remaining intermediate results
 	while (stackSize(&intermediate) > 0)
 	{
-		stackPop(&intermediate);
+		token s = stackPop(&intermediate);
+		free(s);
 	}
 	if (err == true)
 	{
