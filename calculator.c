@@ -9,6 +9,8 @@
 #define true 1
 #define false 0
 
+#define saeam 21800727
+
 #define PI 3.141592653589793
 
 #define MAXTOKENLENGTH 512
