@@ -3,7 +3,7 @@
 #include <string.h>
 #include <math.h> // Temporary
 #include <getopt.h>
-#include "stack.h"
+#include "stack.h"// Iclude the "stack header"
 
 #define bool char
 #define true 1
