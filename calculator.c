@@ -16,6 +16,14 @@
 #define DEFAULTPRECISION 5
 #define FUNCTIONSEPARATOR "|"
 
+#ifndef NAN
+#define NAN (0.0/0.0)
+#endif
+
+#ifndef INFINITY
+#define INFINITY (1.0/0.0)
+#endif
+
 typedef enum
 {
 	addop,
@@ -302,6 +310,7 @@ token doFunc(Stack *s, token function)
 
 int doOp(Stack *s, token op)
 {
+	int err = 0;
 	token roperand = (token)stackPop(s);
 	token loperand = (token)stackPop(s);
 	number lside = buildNumber(loperand);
@@ -324,7 +333,11 @@ int doOp(Stack *s, token op)
 				if(rside == 0)
 				{
 					raise(divZero);
-					return -1;
+					if (lside == 0)
+						ret = NAN;
+					else
+						ret = INFINITY;
+					err = -1;
 				}
 				else
 					ret = lside / rside;
@@ -335,7 +348,11 @@ int doOp(Stack *s, token op)
 				if(rside == 0)
 				{
 					raise(divZero);
-					return -1;
+					if (lside == 0)
+						ret = NAN;
+					else
+						ret = INFINITY;
+					err = -1;
 				}
 				else
 				{
@@ -356,7 +373,7 @@ int doOp(Stack *s, token op)
 			break;
 	}
 	stackPush(s, num2Str(ret));
-	return 0;
+	return err;
 }
 
 /*
