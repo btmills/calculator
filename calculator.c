@@ -135,18 +135,20 @@ number toDegrees(number radians)
 	return radians * 180.0 / PI;
 }
 
-token doFunc(Stack *s, token function)
+int doFunc(Stack *s, token function)
 {
 	if (stackSize(s) == 0)
 	{
 		raise(inputMissing);
-		return "NaN";
+		stackPush(s, num2Str(NAN));
+		return -1;
 	}
 	else if (stackSize(s) == 1 && strcmp(stackTop(s), FUNCTIONSEPARATOR) == 0)
 	{
 		stackPop(s);
 		raise(inputMissing);
-		return "NaN";
+		stackPush(s, num2Str(NAN));
+		return -1;
 	}
 	token input = (token)stackPop(s);
 	number num = buildNumber(input);
