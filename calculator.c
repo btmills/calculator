@@ -538,6 +538,11 @@ bool isFunction(token tk)
 		|| strncmp(tk, "exp", 3) == 0);
 }
 
+bool isSpecialValue(token tk)
+{
+	return (strncmp(tk, "nan", 3) == 0 || strncmp(tk, "inf", 3) == 0);
+}
+
 Symbol tokenType(token tk)
 {
 	if (!tk)
@@ -548,6 +553,8 @@ Symbol tokenType(token tk)
 		case text:
 			if(isFunction(tk))
 				ret = function;
+			else if(isSpecialValue(tk))
+				ret = value;
 			else
 				ret = identifier;
 			break;
