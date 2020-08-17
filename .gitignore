@@ -2,3 +2,6 @@
 *.[oa]
 *~
 calc
+
+# Ignore Makefile 
+Makefile
