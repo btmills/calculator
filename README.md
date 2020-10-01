@@ -1,10 +1,10 @@
 # Calculator
 
-## What
+## What is this about?
 
 This is a command-line calculator, written in C, supporting the standard mathematical operations and a set of functions. Commands can be entered in standard infix syntax, with parentheses denoting nonstandard order of operations. You know, like you were taught in elementary and middle school.
 
-### Operators
+### Operators Supported:
 *	`+` Addition
 *	`-` Subtraction
 *	`*` Multiplication
@@ -12,7 +12,7 @@ This is a command-line calculator, written in C, supporting the standard mathema
 *	`^` Exponent
 *	`%` Modulus
 
-### Functions
+### Functions involved:
 *	`abs(...)` Absolute value
 *	`floor(...)` Floor
 *	`ceil(...)` Ceiling
@@ -34,17 +34,17 @@ This is a command-line calculator, written in C, supporting the standard mathema
 *	`median(...)` Median
 *	`var(...)` Variance
 
-## Why
+## Objective:
 
 To investigate tokenization of an input string, mathematical expressions in infix and postfix notation, and an untyped stack data structure.
 
-## How
+## How it works?
 
 Computation begins with the tokenization of the input string, maintaining original infix order. They are then converted to postfix notation (Reverse Polish Notation) for evaluation using the [shunting-yard algorithm][sy]. As operators are pushed onto the postfix stack, terms are evaluated.
 
 [sy]: http://en.wikipedia.org/wiki/Shunting_yard_algorithm "Wikipedia article on the shunting-yard algorithm"
 
-## What's Cool
+## What's Cool😎:
 
 1. **Untyped stack**  
 Elements are stored on the stack as `void *` types. This means that any type of element can be stored on the stack at the same time as any element of any other type - including custom types - as long as an element's type is known when it is popped off the stack.
