@@ -1,10 +1,8 @@
-# Calculator
-
-## What
+# About Calculator
 
 This is a command-line calculator, written in C, supporting the standard mathematical operations and a set of functions. Commands can be entered in standard infix syntax, with parentheses denoting nonstandard order of operations. You know, like you were taught in elementary and middle school.
 
-### Operators
+### Operations
 *	`+` Addition
 *	`-` Subtraction
 *	`*` Multiplication
@@ -12,7 +10,7 @@ This is a command-line calculator, written in C, supporting the standard mathema
 *	`^` Exponent
 *	`%` Modulus
 
-### Functions
+### Mathematical Functions
 *	`abs(...)` Absolute value
 *	`floor(...)` Floor
 *	`ceil(...)` Ceiling
@@ -44,7 +42,7 @@ Computation begins with the tokenization of the input string, maintaining origin
 
 [sy]: http://en.wikipedia.org/wiki/Shunting_yard_algorithm "Wikipedia article on the shunting-yard algorithm"
 
-## What's Cool
+## New Features
 
 1. **Untyped stack**  
 Elements are stored on the stack as `void *` types. This means that any type of element can be stored on the stack at the same time as any element of any other type - including custom types - as long as an element's type is known when it is popped off the stack.
