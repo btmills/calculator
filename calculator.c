@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <math.h> // Temporary
 #include <getopt.h>
 #include "stack.h"
@@ -713,10 +714,10 @@ int tokenize(char *str, char *(**tokensRef))
 				// Assemble an n-character (plus null-terminator) text token
 				{
 					int len = 1;
-					tmpToken[0] = ch;
+					tmpToken[0] = tolower(ch);
 					for(len = 1; *ptr && type(*ptr) == text && len <= prefs.maxtokenlength; ++len)
 					{
-						tmpToken[len] = *ptr++;
+						tmpToken[len] = tolower(*ptr++);
 					}
 					tmpToken[len] = '\0';
 				}
