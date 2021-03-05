@@ -304,7 +304,7 @@ int doFunc(Stack *s, token function)
 		result /= counter;
 		stackFree(&tmp);
 	}
-	if (strcmp(stackTop(s), FUNCTIONSEPARATOR) == 0)
+	if (stackTop(s) && strcmp(stackTop(s), FUNCTIONSEPARATOR) == 0)
 		stackPop(s);
 	stackPush(s, num2Str(result));
 	return 0;
