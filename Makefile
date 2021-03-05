@@ -21,6 +21,6 @@ stack.o: stack.c stack.h
 	$(CC) $(CFLAGS) stack.c $(LIBS)
 
 clean:
-	rm -f *.o calc stack_test libcalculator.so test_calculator
+	rm -f *.o calc stack_test libcalculator.so calculator_test
 
-.PHONY: calc
+.PHONY: calc clean
