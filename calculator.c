@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <math.h> // Temporary
 #include <getopt.h>
 #include "stack.h"
@@ -614,6 +615,7 @@ int tokenize(char *str, char *(**tokensRef))
 							int len = 1;
 							bool hasDecimal = false;
 							bool hasExponent = false;
+							bool isSpecial = isSpecialValue(ptr);
 
 							if(type(ch) == decimal) // Allow numbers to start with decimal
 							{
@@ -637,7 +639,8 @@ int tokenize(char *str, char *(**tokensRef))
 								 		&& hasDecimal == 0)) // But we have not added a decimal
 								 	|| ((*ptr == 'E' || *ptr == 'e') // Or the next character is an exponent
 								 		&& hasExponent == false) // But we have not added an exponent yet
-								|| ((*ptr == '+' || *ptr == '-') && hasExponent == true)); // Exponent with sign
+								|| ((*ptr == '+' || *ptr == '-') && hasExponent == true) // Exponent with sign
+								|| (isSpecial && type(*ptr) == text)); //
 								++len)
 							{
 								if(type(*ptr) == decimal)
