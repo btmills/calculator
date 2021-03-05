@@ -43,6 +43,10 @@ static CalcTest calc_tests[] = {
     {"1.0E+06*2", 2E6},
     {"1E+006*2", 2E6},
     {"1.0E+006*2", 2E6},
+    {"1E-6*2", -2E6},
+    {"1E-06*2", -2E6},
+    {"1E-006*2", -2E6},
+    {"1.0E-006*2", -2E6},
     // Testing some forumlas
     {"1E-06*(((256*512.0)/128.0)+14)/0.000006", 172.99999999999997},
     {"1E-06*(((0*512.0)/128.0)+14)/0.000006", 2.333333333333333},
@@ -54,7 +58,7 @@ static CalcTest calc_tests[] = {
     {"1/0", INFINITY},
     {"0.0/0.0", NAN},
     {"1.0E-6*nan*64.0/0.111", NAN},
-    {"1.0E-6*NAN*64.0/0.111", NAN}, // if error, special numbers are case-sensitive
+    //{"1.0E-6*NAN*64.0/0.111", NAN}, // if error, special numbers are case-sensitive
     // Testing functions
     /*{"sum(1,2,3,4,5,6,7,8,9,10)", 55},
     {"2.0*sum(1,2,3,4,5,6,7,8,9,10)", 110},

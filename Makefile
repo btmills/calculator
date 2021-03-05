@@ -11,8 +11,8 @@ calc: stack.o calculator.c
 libcalculator.so: stack.o calculator.c calculator.h
 	$(CC) $(LIBFLAGS) -o $@ stack.o calculator.c $(LIBS)
 
-test_calculator: libcalculator.so test_calculator.c
-	$(CC) $(TESTFLAGS) -o test_calculator test_calculator.c $(LIBS) -lcalculator
+calculator_test: libcalculator.so calculator_test.c
+	$(CC) $(TESTFLAGS) -o calculator_test calculator_test.c $(LIBS) -lcalculator
 
 stack_test: stack.o stack_test.c
 	$(CC) $(LFLAGS) -o stack_test stack_test.c stack.c $(LIBS)
