@@ -724,22 +724,24 @@ int tokenize(char *str, char *(**tokensRef))
 			default:
 				break;
 		}
+		// Store the token length for later use
+		size_t tokenLength = strlen(tmpToken);
 		// Add to list of tokens
-		if(tmpToken[0] != '\0' && strlen(tmpToken) > 0)
+		if(tmpToken[0] != '\0' && tokenLength > 0)
 		{
 			numTokens++;
 			/*if(tokens == NULL) // First allocation
 				tokens = (char**)malloc(numTokens * sizeof(char*));
 			else*/
 			
-			newToken = malloc((strlen(tmpToken)+1) * sizeof(char));
+			newToken = malloc((tokenLength+1) * sizeof(char));
 			if (!newToken)
 			{
 				numTokens--;
 				break;
 			}
 			strcpy(newToken, tmpToken);
-			newToken[strlen(tmpToken)] = '\0';
+			newToken[tokenLength] = '\0';
 			tmp = (char**)realloc(tokens, numTokens * sizeof(char*));
 			if (tmp == NULL)
 			{
@@ -1053,13 +1055,15 @@ char* substr(char *str, size_t begin, size_t len)
 bool strBeginsWith(char *haystack, char *needle)
 {
 	bool result;
-	if(strlen(haystack) < strlen(needle))
+	// We don't need to store the length of haystack as we only use it once.
+	size_t needleLength = strlen(needle);
+	if(strlen(haystack) < needleLength)
 	{
 		return false;
 	}
 	else
 	{
-		char *sub = substr(haystack, 0, strlen(needle));
+		char *sub = substr(haystack, 0, needleLength);
 		result = (strcmp(sub, needle) == 0);
 		free(sub);
 		sub = NULL;
