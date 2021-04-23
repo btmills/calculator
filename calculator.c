@@ -90,11 +90,6 @@ void raise(Error err)
 	printf("\tError: %s\n", msg);
 }
 
-inline unsigned int toDigit(char ch)
-{
-	return ch - '0';
-}
-
 number buildNumber(token str)
 {
 	number result = 0;
@@ -1006,40 +1001,6 @@ bool postfix(token *tokens, int numTokens, Stack *output)
 	stackFree(&intermediate);
 	stackFree(&operators);
 	return err;
-}
-
-char* substr(char *str, size_t begin, size_t len)
-{
-	if(str == NULL
-		|| strlen(str) == 0
-		|| strlen(str) < (begin+len))
-		return NULL;
-
-	char *result = (char*)malloc((len + 1) * sizeof(char));
-	int i;
-	for(i = 0; i < len; i++)
-		result[i] = str[begin+i];
-	result[i] = '\0';
-	return result;
-}
-
-bool strBeginsWith(char *haystack, char *needle)
-{
-	bool result;
-	// We don't need to store the length of haystack as we only use it once.
-	size_t needleLength = strlen(needle);
-	if(strlen(haystack) < needleLength)
-	{
-		return false;
-	}
-	else
-	{
-		char *sub = substr(haystack, 0, needleLength);
-		result = (strcmp(sub, needle) == 0);
-		free(sub);
-		sub = NULL;
-	}
-	return result;
 }
 
 // We're passing pointers as parameters because we change their value
