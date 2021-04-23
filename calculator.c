@@ -90,11 +90,6 @@ void raise(Error err)
 	printf("\tError: %s\n", msg);
 }
 
-inline unsigned int toDigit(char ch)
-{
-	return ch - '0';
-}
-
 number buildNumber(token str)
 {
 	number result = 0;
@@ -153,7 +148,7 @@ int doFunc(Stack *s, token function)
 	token input = (token)stackPop(s);
 	number num = buildNumber(input);
 	number result = num;
-	number counter = 0;
+	number counter = 1.0;
 
 	if(strncmp(function, "abs", 3) == 0)
 		result = fabs(num);
@@ -216,8 +211,6 @@ int doFunc(Stack *s, token function)
 	else if(strncmp(function, "avg", 3) == 0 ||
 			strncmp(function, "mean", 4) == 0)
 	{
-		// Result already initialized with first number
-		counter = 1;
 		while (stackSize(s) > 0  && strcmp(stackTop(s), FUNCTIONSEPARATOR) != 0)
 		{
 			input = (token)stackPop(s);
@@ -231,8 +224,6 @@ int doFunc(Stack *s, token function)
 	{
 		// needed for sorting
 		Stack tmp, safe;
-		// Result already initialized with first number
-		counter = 1;
 		stackInit(&tmp, (stackSize(s) > 0 ? stackSize(s) : 1));
 		stackInit(&safe, (stackSize(s) > 0 ? stackSize(s) : 1));
 		// add first value to the later sorted stack
@@ -275,7 +266,6 @@ int doFunc(Stack *s, token function)
 	else if(strncmp(function, "var", 3) == 0)
 	{
 		Stack tmp;
-		counter = 1;
 		// second stack to store values during calculation of mean
 		stackInit(&tmp, (stackSize(s) > 0 ? stackSize(s) : 1));
 		// push first value to temporary stack
@@ -440,74 +430,13 @@ Symbol type(char ch)
 		case ',':
 			result = argsep;
 			break;
-		case '0':
-		case '1':
-		case '2':
-		case '3':
-		case '4':
-		case '5':
-		case '6':
-		case '7':
-		case '8':
-		case '9':
-			result = digit;
-			break;
-		case 'A':
-		case 'B':
-		case 'C':
-		case 'D':
-		case 'E':
-		case 'F':
-		case 'G':
-		case 'H':
-		case 'I':
-		case 'J':
-		case 'K':
-		case 'L':
-		case 'M':
-		case 'N':
-		case 'O':
-		case 'P':
-		case 'Q':
-		case 'R':
-		case 'S':
-		case 'T':
-		case 'U':
-		case 'V':
-		case 'W':
-		case 'X':
-		case 'Y':
-		case 'Z':
-		case 'a':
-		case 'b':
-		case 'c':
-		case 'd':
-		case 'e':
-		case 'f':
-		case 'g':
-		case 'h':
-		case 'i':
-		case 'j':
-		case 'k':
-		case 'l':
-		case 'm':
-		case 'n':
-		case 'o':
-		case 'p':
-		case 'q':
-		case 'r':
-		case 's':
-		case 't':
-		case 'u':
-		case 'v':
-		case 'w':
-		case 'x':
-		case 'y':
-		case 'z':
-			result = text;
-			break;
 		default:
-			result = invalid;
+			if (ch >= '0' && ch <= '9')
+				result = digit;
+			else if ((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z'))
+				result = text;
+			else
+				result = invalid;
 			break;
 	}
 	return result;
@@ -575,6 +504,48 @@ Symbol tokenType(token tk)
 }
 
 
+void parseOpToken(char ch, char *tmpToken, char *ptr)
+{
+	int len = 1;
+	bool hasDecimal = false;
+	bool hasExponent = false;
+
+	if(type(ch) == decimal) // Allow numbers to start with decimal
+	{
+		//printf("Decimal\n");
+		hasDecimal = true;
+		len++;
+		tmpToken[0] = '0';
+		tmpToken[1] = '.';
+	}
+	else // Numbers that do not start with decimal
+	{
+		tmpToken[len-1] = ch;
+	}
+
+	// Assemble rest of number
+	for(; // Don't change len
+		*ptr // There is a next character and it is not null
+		&& len <= prefs.maxtokenlength
+		&& (type(*ptr) == digit // The next character is a digit
+			|| ((type(*ptr) == decimal // Or the next character is a decimal
+				&& hasDecimal == 0)) // But we have not added a decimal
+			|| ((*ptr == 'E' || *ptr == 'e') // Or the next character is an exponent
+				&& hasExponent == false) // But we have not added an exponent yet
+		|| ((*ptr == '+' || *ptr == '-') && hasExponent == true)); // Exponent with sign
+		++len)
+	{
+		if(type(*ptr) == decimal)
+			hasDecimal = true;
+		else if(*ptr == 'E' || *ptr == 'e')
+			hasExponent = true;
+		tmpToken[len] = *ptr++;
+	}
+
+	// Append null-terminator
+	tmpToken[len] = '\0';
+}
+
 int tokenize(char *str, char *(**tokensRef))
 {
 	int i = 0;
@@ -601,54 +572,20 @@ int tokenize(char *str, char *(**tokensRef))
 			case addop:
 				{
 					// Check if this is a negative
+					Symbol lastTokenType = invalid;
+					if (numTokens > 0)
+						lastTokenType = tokenType(tokens[numTokens-1]);
 					if(ch == '-'
 						&& (numTokens == 0
-							|| (tokenType(tokens[numTokens-1]) == addop
-								|| tokenType(tokens[numTokens-1]) == multop
-								|| tokenType(tokens[numTokens-1]) == expop
-								|| tokenType(tokens[numTokens-1]) == lparen
-								|| tokenType(tokens[numTokens-1]) == argsep)))
+							|| (lastTokenType == addop
+								|| lastTokenType == multop
+								|| lastTokenType == expop
+								|| lastTokenType == lparen
+								|| lastTokenType == argsep)))
 					{
 						// Assemble an n-character (plus null-terminator) number token
 						{
-							int len = 1;
-							bool hasDecimal = false;
-							bool hasExponent = false;
-
-							if(type(ch) == decimal) // Allow numbers to start with decimal
-							{
-								//printf("Decimal\n");
-								hasDecimal = true;
-								len++;
-								tmpToken[0] = '0';
-								tmpToken[1] = '.';
-							}
-							else // Numbers that do not start with decimal
-							{
-								tmpToken[len-1] = ch;
-							}
-
-							// Assemble rest of number
-							for(; // Don't change len
-								*ptr // There is a next character and it is not null
-								&& len <= prefs.maxtokenlength
-								&& (type(*ptr) == digit // The next character is a digit
-								 	|| ((type(*ptr) == decimal // Or the next character is a decimal
-								 		&& hasDecimal == 0)) // But we have not added a decimal
-								 	|| ((*ptr == 'E' || *ptr == 'e') // Or the next character is an exponent
-								 		&& hasExponent == false) // But we have not added an exponent yet
-								|| ((*ptr == '+' || *ptr == '-') && hasExponent == true)); // Exponent with sign
-								++len)
-							{
-								if(type(*ptr) == decimal)
-									hasDecimal = true;
-								else if(*ptr == 'E' || *ptr == 'e')
-									hasExponent = true;
-								tmpToken[len] = *ptr++;
-							}
-
-							// Append null-terminator
-							tmpToken[len] = '\0';
+							parseOpToken(ch, tmpToken, ptr);
 						}
 						break;
 					}
@@ -669,44 +606,7 @@ int tokenize(char *str, char *(**tokensRef))
 			case decimal:
 				// Assemble an n-character (plus null-terminator) number token
 				{
-					int len = 1;
-					bool hasDecimal = false;
-					bool hasExponent = false;
-
-					if(type(ch) == decimal) // Allow numbers to start with decimal
-					{
-						//printf("Decimal\n");
-						hasDecimal = true;
-						len++;
-						tmpToken[0] = '0';
-						tmpToken[1] = '.';
-					}
-					else // Numbers that do not start with decimal
-					{
-						tmpToken[len-1] = ch;
-					}
-
-					// Assemble rest of number
-					for(; // Don't change len
-						*ptr // There is a next character and it is not null
-						&& len <= prefs.maxtokenlength
-						&& (type(*ptr) == digit // The next character is a digit
-						 	|| ((type(*ptr) == decimal // Or the next character is a decimal
-						 		&& hasDecimal == 0)) // But we have not added a decimal
-						 	|| ((*ptr == 'E' || *ptr == 'e') // Or the next character is an exponent
-						 		&& hasExponent == false) // But we have not added an exponent yet
-						 	|| ((*ptr == '+' || *ptr == '-') && hasExponent == true)); // Exponent with sign
-						++len)
-					{
-						if(type(*ptr) == decimal)
-							hasDecimal = true;
-						else if(*ptr == 'E' || *ptr == 'e')
-							hasExponent = true;
-						tmpToken[len] = *ptr++;
-					}
-
-					// Append null-terminator
-					tmpToken[len] = '\0';
+					parseOpToken(ch, tmpToken, ptr);
 				}
 				break;
 			case text:
@@ -724,22 +624,24 @@ int tokenize(char *str, char *(**tokensRef))
 			default:
 				break;
 		}
+		// Store the token length for later use
+		size_t tokenLength = strlen(tmpToken);
 		// Add to list of tokens
-		if(tmpToken[0] != '\0' && strlen(tmpToken) > 0)
+		if(tmpToken[0] != '\0' && tokenLength > 0)
 		{
 			numTokens++;
 			/*if(tokens == NULL) // First allocation
 				tokens = (char**)malloc(numTokens * sizeof(char*));
 			else*/
 			
-			newToken = malloc((strlen(tmpToken)+1) * sizeof(char));
+			newToken = malloc((tokenLength+1) * sizeof(char));
 			if (!newToken)
 			{
 				numTokens--;
 				break;
 			}
 			strcpy(newToken, tmpToken);
-			newToken[strlen(tmpToken)] = '\0';
+			newToken[tokenLength] = '\0';
 			tmp = (char**)realloc(tokens, numTokens * sizeof(char*));
 			if (tmp == NULL)
 			{
@@ -792,27 +694,30 @@ int precedence(token op1, token op2)
 {
 	int ret = 0;
 
+	Symbol type1 = tokenType(op1);
+	Symbol type2 = tokenType(op2);
+
 	if (op2 == NULL)
 		ret = 1;
-	else if(tokenType(op1) == tokenType(op2)) // Equal precedence
+	else if(type1 == type2) // Equal precedence
 		ret = 0;
-	else if(tokenType(op1) == addop
-			&& (tokenType(op2) == multop || tokenType(op2) == expop)) // op1 has lower precedence
+	else if(type1 == addop
+			&& (type2 == multop || type2 == expop)) // op1 has lower precedence
 		ret = -1;
-	else if(tokenType(op2) == addop
-			&& (tokenType(op1) == multop || tokenType(op1) == expop)) // op1 has higher precedence
+	else if(type2 == addop
+			&& (type1 == multop || type1 == expop)) // op1 has higher precedence
 		ret = 1;
-	else if(tokenType(op1) == multop
-			&& tokenType(op2) == expop) // op1 has lower precedence
+	else if(type1 == multop
+			&& type2 == expop) // op1 has lower precedence
 		ret = -1;
-	else if(tokenType(op1) == expop
-			&& tokenType(op2) == multop) // op1 has higher precedence
+	else if(type1 == expop
+			&& type2 == multop) // op1 has higher precedence
 		ret = 1;
-	else if (tokenType(op1) == function 
-			&& (tokenType(op2) == addop || tokenType(op2) == multop || tokenType(op2) == expop || tokenType(op2) == lparen))
+	else if (type1 == function 
+			&& (type2 == addop || type2 == multop || type2 == expop || type2 == lparen))
 		ret = 1;
-	else if ((tokenType(op1) == addop || tokenType(op1) == multop || tokenType(op1) == expop)
-			&& tokenType(op2) == function)
+	else if ((type1 == addop || type1 == multop || type1 == expop)
+			&& type2 == function)
 		ret = -1;
 	return ret;
 }
@@ -871,10 +776,12 @@ bool postfix(token *tokens, int numTokens, Stack *output)
 	bool err = false;
 	stackInit(&operators, numTokens);
 	stackInit(&intermediate, numTokens);
+	Symbol currentTokenType;
 	for(i = 0; i < numTokens; i++)
 	{
+		currentTokenType = tokenType(tokens[i]);
 		// From Wikipedia/Shunting-yard_algorithm:
-		switch(tokenType(tokens[i]))
+		switch(currentTokenType)
 		{
 			case value:
 				{
@@ -886,7 +793,7 @@ bool postfix(token *tokens, int numTokens, Stack *output)
 			case function:
 				{
 					while(stackSize(&operators) > 0
-						&& (tokenType(tokens[i]) != lparen)
+						&& (currentTokenType != lparen)
 						&& ((precedence(tokens[i], (char*)stackTop(&operators)) <= 0)))
 					{
 						//printf("Moving operator %s from operator stack to output stack\n", (char*)stackTop(&operators));
@@ -1035,36 +942,20 @@ bool postfix(token *tokens, int numTokens, Stack *output)
 	return err;
 }
 
-char* substr(char *str, size_t begin, size_t len)
+// We're passing pointers as parameters because we change their value
+void freeCurrentAndPreviousParts(int *numParts, char **part, char ***parts)
 {
-	if(str == NULL
-		|| strlen(str) == 0
-		|| strlen(str) < (begin+len))
-		return NULL;
-
-	char *result = (char*)malloc((len + 1) * sizeof(char));
-	int i;
-	for(i = 0; i < len; i++)
-		result[i] = str[begin+i];
-	result[i] = '\0';
-	return result;
-}
-
-bool strBeginsWith(char *haystack, char *needle)
-{
-	bool result;
-	if(strlen(haystack) < strlen(needle))
+	free(*part);
+	*part = NULL;
+	for(int len = 0;len < *numParts; len++)
 	{
-		return false;
+		if ((*parts)[len])
+			free((*parts)[len]);
 	}
-	else
-	{
-		char *sub = substr(haystack, 0, strlen(needle));
-		result = (strcmp(sub, needle) == 0);
-		free(sub);
-		sub = NULL;
-	}
-	return result;
+	if (*parts)
+		free(*parts);
+	*parts = NULL;
+	*numParts = 0;
 }
 
 int strSplit(char *str, const char split, char *(**partsRef))
@@ -1088,17 +979,7 @@ int strSplit(char *str, const char split, char *(**partsRef))
 			// if realloc fails, free current part and all previous parts
 			if (tmppart == NULL)
 			{
-				free(part);
-				part = NULL;
-				for(len=0;len<numParts;len++)
-				{
-					if (parts[len])
-						free(parts[len]);
-				}
-				if (parts)
-					free(parts);
-				parts = NULL;
-				numParts = 0;
+				freeCurrentAndPreviousParts(&numParts, &part, &parts);
 				break;
 			}
 			part = tmppart;
@@ -1114,17 +995,7 @@ int strSplit(char *str, const char split, char *(**partsRef))
 				// if relloc fails, free current and previous parts
 				if (tmpparts == NULL)
 				{
-					free(part);
-					part = NULL;
-					for(len=0;len<numParts-1;len++)
-					{
-						if (parts[len])
-							free(parts[len]);
-					}
-					if (parts)
-						free(parts);
-					parts = NULL;
-					numParts = 0;
+					freeCurrentAndPreviousParts(&numParts, &part, &parts);
 					break;
 				}
 				parts = tmpparts;
@@ -1146,16 +1017,7 @@ int strSplit(char *str, const char split, char *(**partsRef))
 				// if relloc fails, free current and previous parts
 				if (tmppart == NULL)
 				{
-					free(part);
-					part = NULL;
-					for(len=0;len<numParts;len++)
-					{
-						if (parts[len])
-							free(parts[len]);
-					}
-					free(parts);
-					numParts = 0;
-					parts = NULL;
+					freeCurrentAndPreviousParts(&numParts, &part, &parts);
 					break;
 				}
 				part = tmppart;
