@@ -153,7 +153,7 @@ int doFunc(Stack *s, token function)
 	token input = (token)stackPop(s);
 	number num = buildNumber(input);
 	number result = num;
-	number counter = 0;
+	number counter = 1.0;
 
 	if(strncmp(function, "abs", 3) == 0)
 		result = fabs(num);
@@ -216,8 +216,6 @@ int doFunc(Stack *s, token function)
 	else if(strncmp(function, "avg", 3) == 0 ||
 			strncmp(function, "mean", 4) == 0)
 	{
-		// Result already initialized with first number
-		counter = 1;
 		while (stackSize(s) > 0  && strcmp(stackTop(s), FUNCTIONSEPARATOR) != 0)
 		{
 			input = (token)stackPop(s);
@@ -231,8 +229,6 @@ int doFunc(Stack *s, token function)
 	{
 		// needed for sorting
 		Stack tmp, safe;
-		// Result already initialized with first number
-		counter = 1;
 		stackInit(&tmp, (stackSize(s) > 0 ? stackSize(s) : 1));
 		stackInit(&safe, (stackSize(s) > 0 ? stackSize(s) : 1));
 		// add first value to the later sorted stack
@@ -275,7 +271,6 @@ int doFunc(Stack *s, token function)
 	else if(strncmp(function, "var", 3) == 0)
 	{
 		Stack tmp;
-		counter = 1;
 		// second stack to store values during calculation of mean
 		stackInit(&tmp, (stackSize(s) > 0 ? stackSize(s) : 1));
 		// push first value to temporary stack
@@ -643,13 +638,16 @@ int tokenize(char *str, char *(**tokensRef))
 			case addop:
 				{
 					// Check if this is a negative
+					Symbol lastTokenType = invalid;
+					if (numTokens > 0)
+						lastTokenType = tokenType(tokens[numTokens-1]);
 					if(ch == '-'
 						&& (numTokens == 0
-							|| (tokenType(tokens[numTokens-1]) == addop
-								|| tokenType(tokens[numTokens-1]) == multop
-								|| tokenType(tokens[numTokens-1]) == expop
-								|| tokenType(tokens[numTokens-1]) == lparen
-								|| tokenType(tokens[numTokens-1]) == argsep)))
+							|| (lastTokenType == addop
+								|| lastTokenType == multop
+								|| lastTokenType == expop
+								|| lastTokenType == lparen
+								|| lastTokenType == argsep)))
 					{
 						// Assemble an n-character (plus null-terminator) number token
 						{
@@ -762,27 +760,30 @@ int precedence(token op1, token op2)
 {
 	int ret = 0;
 
+	Symbol type1 = tokenType(op1);
+	Symbol type2 = tokenType(op2);
+
 	if (op2 == NULL)
 		ret = 1;
-	else if(tokenType(op1) == tokenType(op2)) // Equal precedence
+	else if(type1 == type2) // Equal precedence
 		ret = 0;
-	else if(tokenType(op1) == addop
-			&& (tokenType(op2) == multop || tokenType(op2) == expop)) // op1 has lower precedence
+	else if(type1 == addop
+			&& (type2 == multop || type2 == expop)) // op1 has lower precedence
 		ret = -1;
-	else if(tokenType(op2) == addop
-			&& (tokenType(op1) == multop || tokenType(op1) == expop)) // op1 has higher precedence
+	else if(type2 == addop
+			&& (type1 == multop || type1 == expop)) // op1 has higher precedence
 		ret = 1;
-	else if(tokenType(op1) == multop
-			&& tokenType(op2) == expop) // op1 has lower precedence
+	else if(type1 == multop
+			&& type2 == expop) // op1 has lower precedence
 		ret = -1;
-	else if(tokenType(op1) == expop
-			&& tokenType(op2) == multop) // op1 has higher precedence
+	else if(type1 == expop
+			&& type2 == multop) // op1 has higher precedence
 		ret = 1;
-	else if (tokenType(op1) == function 
-			&& (tokenType(op2) == addop || tokenType(op2) == multop || tokenType(op2) == expop || tokenType(op2) == lparen))
+	else if (type1 == function 
+			&& (type2 == addop || type2 == multop || type2 == expop || type2 == lparen))
 		ret = 1;
-	else if ((tokenType(op1) == addop || tokenType(op1) == multop || tokenType(op1) == expop)
-			&& tokenType(op2) == function)
+	else if ((type1 == addop || type1 == multop || type1 == expop)
+			&& type2 == function)
 		ret = -1;
 	return ret;
 }
@@ -841,10 +842,12 @@ bool postfix(token *tokens, int numTokens, Stack *output)
 	bool err = false;
 	stackInit(&operators, numTokens);
 	stackInit(&intermediate, numTokens);
+	Symbol currentTokenType;
 	for(i = 0; i < numTokens; i++)
 	{
+		currentTokenType = tokenType(tokens[i]);
 		// From Wikipedia/Shunting-yard_algorithm:
-		switch(tokenType(tokens[i]))
+		switch(currentTokenType)
 		{
 			case value:
 				{
@@ -856,7 +859,7 @@ bool postfix(token *tokens, int numTokens, Stack *output)
 			case function:
 				{
 					while(stackSize(&operators) > 0
-						&& (tokenType(tokens[i]) != lparen)
+						&& (currentTokenType != lparen)
 						&& ((precedence(tokens[i], (char*)stackTop(&operators)) <= 0)))
 					{
 						//printf("Moving operator %s from operator stack to output stack\n", (char*)stackTop(&operators));
