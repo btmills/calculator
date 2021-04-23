@@ -575,6 +575,48 @@ Symbol tokenType(token tk)
 }
 
 
+void parseOpToken(char ch, char *tmpToken, char *ptr)
+{
+	int len = 1;
+	bool hasDecimal = false;
+	bool hasExponent = false;
+
+	if(type(ch) == decimal) // Allow numbers to start with decimal
+	{
+		//printf("Decimal\n");
+		hasDecimal = true;
+		len++;
+		tmpToken[0] = '0';
+		tmpToken[1] = '.';
+	}
+	else // Numbers that do not start with decimal
+	{
+		tmpToken[len-1] = ch;
+	}
+
+	// Assemble rest of number
+	for(; // Don't change len
+		*ptr // There is a next character and it is not null
+		&& len <= prefs.maxtokenlength
+		&& (type(*ptr) == digit // The next character is a digit
+			|| ((type(*ptr) == decimal // Or the next character is a decimal
+				&& hasDecimal == 0)) // But we have not added a decimal
+			|| ((*ptr == 'E' || *ptr == 'e') // Or the next character is an exponent
+				&& hasExponent == false) // But we have not added an exponent yet
+		|| ((*ptr == '+' || *ptr == '-') && hasExponent == true)); // Exponent with sign
+		++len)
+	{
+		if(type(*ptr) == decimal)
+			hasDecimal = true;
+		else if(*ptr == 'E' || *ptr == 'e')
+			hasExponent = true;
+		tmpToken[len] = *ptr++;
+	}
+
+	// Append null-terminator
+	tmpToken[len] = '\0';
+}
+
 int tokenize(char *str, char *(**tokensRef))
 {
 	int i = 0;
@@ -611,44 +653,7 @@ int tokenize(char *str, char *(**tokensRef))
 					{
 						// Assemble an n-character (plus null-terminator) number token
 						{
-							int len = 1;
-							bool hasDecimal = false;
-							bool hasExponent = false;
-
-							if(type(ch) == decimal) // Allow numbers to start with decimal
-							{
-								//printf("Decimal\n");
-								hasDecimal = true;
-								len++;
-								tmpToken[0] = '0';
-								tmpToken[1] = '.';
-							}
-							else // Numbers that do not start with decimal
-							{
-								tmpToken[len-1] = ch;
-							}
-
-							// Assemble rest of number
-							for(; // Don't change len
-								*ptr // There is a next character and it is not null
-								&& len <= prefs.maxtokenlength
-								&& (type(*ptr) == digit // The next character is a digit
-								 	|| ((type(*ptr) == decimal // Or the next character is a decimal
-								 		&& hasDecimal == 0)) // But we have not added a decimal
-								 	|| ((*ptr == 'E' || *ptr == 'e') // Or the next character is an exponent
-								 		&& hasExponent == false) // But we have not added an exponent yet
-								|| ((*ptr == '+' || *ptr == '-') && hasExponent == true)); // Exponent with sign
-								++len)
-							{
-								if(type(*ptr) == decimal)
-									hasDecimal = true;
-								else if(*ptr == 'E' || *ptr == 'e')
-									hasExponent = true;
-								tmpToken[len] = *ptr++;
-							}
-
-							// Append null-terminator
-							tmpToken[len] = '\0';
+							parseOpToken(ch, tmpToken, ptr);
 						}
 						break;
 					}
@@ -669,44 +674,7 @@ int tokenize(char *str, char *(**tokensRef))
 			case decimal:
 				// Assemble an n-character (plus null-terminator) number token
 				{
-					int len = 1;
-					bool hasDecimal = false;
-					bool hasExponent = false;
-
-					if(type(ch) == decimal) // Allow numbers to start with decimal
-					{
-						//printf("Decimal\n");
-						hasDecimal = true;
-						len++;
-						tmpToken[0] = '0';
-						tmpToken[1] = '.';
-					}
-					else // Numbers that do not start with decimal
-					{
-						tmpToken[len-1] = ch;
-					}
-
-					// Assemble rest of number
-					for(; // Don't change len
-						*ptr // There is a next character and it is not null
-						&& len <= prefs.maxtokenlength
-						&& (type(*ptr) == digit // The next character is a digit
-						 	|| ((type(*ptr) == decimal // Or the next character is a decimal
-						 		&& hasDecimal == 0)) // But we have not added a decimal
-						 	|| ((*ptr == 'E' || *ptr == 'e') // Or the next character is an exponent
-						 		&& hasExponent == false) // But we have not added an exponent yet
-						 	|| ((*ptr == '+' || *ptr == '-') && hasExponent == true)); // Exponent with sign
-						++len)
-					{
-						if(type(*ptr) == decimal)
-							hasDecimal = true;
-						else if(*ptr == 'E' || *ptr == 'e')
-							hasExponent = true;
-						tmpToken[len] = *ptr++;
-					}
-
-					// Append null-terminator
-					tmpToken[len] = '\0';
+					parseOpToken(ch, tmpToken, ptr);
 				}
 				break;
 			case text:
@@ -1071,6 +1039,22 @@ bool strBeginsWith(char *haystack, char *needle)
 	return result;
 }
 
+// We're passing pointers as parameters because we change their value
+void freeCurrentAndPreviousParts(int *numParts, char **part, char ***parts)
+{
+	free(*part);
+	*part = NULL;
+	for(int len = 0;len < *numParts; len++)
+	{
+		if ((*parts)[len])
+			free((*parts)[len]);
+	}
+	if (*parts)
+		free(*parts);
+	*parts = NULL;
+	*numParts = 0;
+}
+
 int strSplit(char *str, const char split, char *(**partsRef))
 {
 	char **parts = NULL;
@@ -1092,17 +1076,7 @@ int strSplit(char *str, const char split, char *(**partsRef))
 			// if realloc fails, free current part and all previous parts
 			if (tmppart == NULL)
 			{
-				free(part);
-				part = NULL;
-				for(len=0;len<numParts;len++)
-				{
-					if (parts[len])
-						free(parts[len]);
-				}
-				if (parts)
-					free(parts);
-				parts = NULL;
-				numParts = 0;
+				freeCurrentAndPreviousParts(&numParts, &part, &parts);
 				break;
 			}
 			part = tmppart;
@@ -1118,17 +1092,7 @@ int strSplit(char *str, const char split, char *(**partsRef))
 				// if relloc fails, free current and previous parts
 				if (tmpparts == NULL)
 				{
-					free(part);
-					part = NULL;
-					for(len=0;len<numParts-1;len++)
-					{
-						if (parts[len])
-							free(parts[len]);
-					}
-					if (parts)
-						free(parts);
-					parts = NULL;
-					numParts = 0;
+					freeCurrentAndPreviousParts(&numParts, &part, &parts);
 					break;
 				}
 				parts = tmpparts;
@@ -1150,16 +1114,7 @@ int strSplit(char *str, const char split, char *(**partsRef))
 				// if relloc fails, free current and previous parts
 				if (tmppart == NULL)
 				{
-					free(part);
-					part = NULL;
-					for(len=0;len<numParts;len++)
-					{
-						if (parts[len])
-							free(parts[len]);
-					}
-					free(parts);
-					numParts = 0;
-					parts = NULL;
+					freeCurrentAndPreviousParts(&numParts, &part, &parts);
 					break;
 				}
 				part = tmppart;
