@@ -3,7 +3,7 @@
 #include <string.h>
 #include <math.h> // Temporary
 #include <getopt.h>
-#ifdef CACLULATOR_AS_LIB
+#ifdef CALCULATOR_AS_LIB
 #include <errno.h>
 #endif
 #include "stack.h"
@@ -1276,7 +1276,7 @@ bool execCommand(char *str)
 	return recognized;
 }
 
-#ifdef CACLULATOR_AS_LIB
+#ifdef CALCULATOR_AS_LIB
 
 int calculator_init()
 {

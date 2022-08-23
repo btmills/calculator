@@ -28,7 +28,7 @@
 #define FUNCTIONSEPARATOR "|"
 
 
-#ifdef CACLULATOR_AS_LIB
+#ifdef CALCULATOR_AS_LIB
 int calculator_init();
 int calculator_setprecision();
 int calculator_settokenlength();
