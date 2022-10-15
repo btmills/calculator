@@ -3,26 +3,14 @@
 #include <string.h>
 #include <math.h> // Temporary
 #include <getopt.h>
+#ifdef CALCULATOR_AS_LIB
+#include <errno.h>
+#endif
 #include "stack.h"
+#include "calculator.h"
 
-#define bool char
-#define true 1
-#define false 0
 
-#define PI 3.141592653589793
 
-#define MAXTOKENLENGTH 512
-#define MAXPRECISION 20
-#define DEFAULTPRECISION 5
-#define FUNCTIONSEPARATOR "|"
-
-#ifndef NAN
-#define NAN (0.0/0.0)
-#endif
-
-#ifndef INFINITY
-#define INFINITY (1.0/0.0)
-#endif
 
 typedef enum
 {
@@ -114,7 +102,7 @@ token num2Str(number num)
 		precision = prefs.precision;
 	token str = (token)malloc(prefs.maxtokenlength*sizeof(char));
 	len = snprintf(str, prefs.maxtokenlength-1, "%.*f", precision, num);
-	if (prefs.precision == -1)
+	if (prefs.precision == AUTOPRECISION)
 	{
 		while (str[len-1] == '0')
 		{
@@ -1288,6 +1276,102 @@ bool execCommand(char *str)
 	return recognized;
 }
 
+#ifdef CALCULATOR_AS_LIB
+
+int calculator_init()
+{
+	prefs.precision = DEFAULTPRECISION;
+	prefs.maxtokenlength = MAXTOKENLENGTH;
+	return 0;
+}
+
+int calculator_setprecision(int precision)
+{
+	if ((precision >= 0 && precision < MAXPRECISION) || (precision == AUTOPRECISION))
+	{
+		prefs.precision = precision;
+		return 0;
+	}
+	return -EINVAL;
+}
+
+int calculator_setpostfix(int flag)
+{
+	if (flag >= 0 && flag <= 1)
+	{
+		prefs.display.tokens = flag;
+		return 0;
+	}
+	return -EINVAL;
+}
+
+int calculator_settokenlength(int tokenlength)
+{
+	if (tokenlength >= 0 && tokenlength < MAXTOKENLENGTH)
+	{
+		prefs.maxtokenlength = tokenlength;
+		return 0;
+	}
+	return -EINVAL;
+}
+
+int calculator_calc(const char* formula, double* result)
+{
+	int i = 0;
+	int err = 0;
+	int numTokens = 0;
+	double res = NAN;
+	Stack expr;
+	token* tokens = NULL;
+	if (strlen(formula) == 0)
+	{
+		return -1;
+	}
+	if (type(*formula) == text)
+	{
+		err = execCommand((char*)formula);
+		return err;
+	}
+	numTokens = tokenize((char*)formula, &tokens);
+	if (numTokens == 0)
+	{
+		printf("\tError tokenizing expression\n");
+		return -EINVAL;
+	}
+	stackInit(&expr, numTokens);
+	postfix(tokens, numTokens, &expr);
+	if(stackSize(&expr) != 1)
+	{
+		printf("\tError evaluating expression\n");
+		return -EFAULT;
+	}
+	else
+	{
+		res = atof((char*)stackTop(&expr));
+		for (i=0; i< numTokens; i++)
+		{
+			if (tokens[i] == stackTop(&expr))
+				tokens[i] = NULL;
+		}
+		free(stackPop(&expr));
+	}
+
+	for(i = 0; i < numTokens; i++)
+	{
+		if (tokens[i] != NULL)
+			free(tokens[i]);
+	}
+	free(tokens);
+	tokens = NULL;
+	numTokens = 0;
+	stackFree(&expr);
+	if (result)
+		*result = res;
+	return 0;
+}
+
+
+#else
 int main(int argc, char *argv[])
 {
 	char* str = NULL;
@@ -1390,3 +1474,4 @@ get_new_string:
 
 	return EXIT_SUCCESS;
 }
+#endif
