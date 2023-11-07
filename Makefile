@@ -13,6 +13,6 @@ stack.o: stack.c stack.h
 	$(CC) $(CFLAGS) stack.c $(LIBS)
 
 clean:
-	rm -f *.o calc stack_test
+	rm -f *.o stack_test
 
 .PHONY: calc
