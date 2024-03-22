@@ -1336,14 +1336,16 @@ int calculator_calc(const char* formula, double* result)
 	if (numTokens == 0)
 	{
 		printf("\tError tokenizing expression\n");
-		return -EINVAL;
+		err = -EINVAL;
+		goto error_or_out;
 	}
 	stackInit(&expr, numTokens);
 	postfix(tokens, numTokens, &expr);
 	if(stackSize(&expr) != 1)
 	{
 		printf("\tError evaluating expression\n");
-		return -EFAULT;
+		err =  -EFAULT;
+		goto error_or_out;
 	}
 	else
 	{
@@ -1355,19 +1357,22 @@ int calculator_calc(const char* formula, double* result)
 		}
 		free(stackPop(&expr));
 	}
-
+error_or_out:
 	for(i = 0; i < numTokens; i++)
 	{
 		if (tokens[i] != NULL)
 			free(tokens[i]);
 	}
-	free(tokens);
-	tokens = NULL;
+	if (tokens)
+	{
+		free(tokens);
+		tokens = NULL;
+	}
 	numTokens = 0;
 	stackFree(&expr);
-	if (result)
+	if (err == 0 && result)
 		*result = res;
-	return 0;
+	return err;
 }
 
 
